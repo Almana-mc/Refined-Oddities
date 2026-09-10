@@ -1,0 +1,5 @@
+build/
+.idea/
+.gradle/
+bin/main/
+.eclipse/configurations/
