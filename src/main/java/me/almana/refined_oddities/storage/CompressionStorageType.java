@@ -7,9 +7,11 @@ import com.refinedmods.refinedstorage.api.resource.ResourceKey;
 import com.refinedmods.refinedstorage.common.api.storage.SerializableStorage;
 import com.refinedmods.refinedstorage.common.api.storage.StorageType;
 import com.refinedmods.refinedstorage.common.support.resource.ItemResource;
+import com.refinedmods.refinedstorage.common.support.resource.ResourceCodecs;
 import java.util.List;
 import java.util.Optional;
 import javax.annotation.Nullable;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 
 public final class CompressionStorageType implements StorageType {
@@ -29,14 +31,17 @@ public final class CompressionStorageType implements StorageType {
             Codec.LONG.fieldOf("base_units").forGetter(storage -> ((CompressionStorage) storage).getBaseUnits()),
             CompressionForm.CODEC.listOf().fieldOf("forms")
                 .forGetter(storage -> ((CompressionStorage) storage).getFamily().forms()),
+            ResourceCodecs.ITEM_CODEC.optionalFieldOf("configured_resource")
+                .forGetter(storage -> ((CompressionStorage) storage).getConfiguredResource()),
             ResourceLocation.CODEC.optionalFieldOf("configured_item")
-                .forGetter(storage -> ((CompressionStorage) storage).getConfiguredItemId()),
+                .forGetter(storage -> Optional.empty()),
             ResourceLocation.CODEC.listOf().optionalFieldOf("enabled_items")
                 .forGetter(storage -> Optional.of(((CompressionStorage) storage).getEnabledItemIds()))
-        ).apply(instance, (baseUnits, forms, configuredItemId, enabledItems) -> new CompressionStorage(
+        ).apply(instance, (baseUnits, forms, configuredResource, configuredItemId, enabledItems) -> new CompressionStorage(
             baseUnits,
             new CompressionFamily(List.copyOf(forms)),
-            configuredItemId,
+            configuredResource.or(() -> configuredItemId.map(itemId ->
+                new ItemResource(BuiltInRegistries.ITEM.get(itemId)))),
             enabledItems,
             listener
         )));
@@ -44,7 +49,7 @@ public final class CompressionStorageType implements StorageType {
 
     @Override
     public boolean isAllowed(final ResourceKey resource) {
-        return resource instanceof ItemResource itemResource && itemResource.components().isEmpty();
+        return resource instanceof ItemResource;
     }
 
     @Override

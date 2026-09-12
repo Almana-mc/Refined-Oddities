@@ -1,8 +1,6 @@
 package me.almana.refined_oddities.recipe;
 
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import net.minecraft.core.HolderLookup;
@@ -27,28 +25,26 @@ public final class CompressionRecipeScanner {
                                                         final HolderLookup.Provider registries) {
         final List<CompressionLink> compression = new ArrayList<>();
         final List<CompressionLink> decompression = new ArrayList<>();
-        final Set<ResourceLocation> rejected = new HashSet<>();
         for (final RecipeHolder<?> holder : recipeManager.getRecipes()) {
             if (!(holder.value() instanceof CraftingRecipe recipe)) {
                 continue;
             }
             if (recipe instanceof ShapedRecipe shaped && shaped.getWidth() == shaped.getHeight()) {
                 if (shaped.getWidth() == 2 || shaped.getWidth() == 3) {
-                    scanCompression(shaped, registries, compression, rejected);
+                    scanCompression(shaped, registries, compression);
                 } else if (shaped.getWidth() == 1) {
-                    scanDecompression(shaped, registries, decompression, rejected);
+                    scanDecompression(shaped, registries, decompression);
                 }
             } else if (recipe instanceof ShapelessRecipe shapeless && shapeless.getIngredients().size() == 1) {
-                scanDecompression(shapeless, registries, decompression, rejected);
+                scanDecompression(shapeless, registries, decompression);
             }
         }
-        return CompressionFamilyDetector.detect(compression, decompression, rejected);
+        return CompressionFamilyDetector.detect(compression, decompression, Set.of());
     }
 
     private static void scanCompression(final ShapedRecipe recipe,
                                         final HolderLookup.Provider registries,
-                                        final List<CompressionLink> links,
-                                        final Set<ResourceLocation> rejected) {
+                                        final List<CompressionLink> links) {
         final ItemStack output = recipe.getResultItem(registries);
         final int ratio = recipe.getWidth() * recipe.getHeight();
         final List<Ingredient> ingredients = recipe.getIngredients();
@@ -65,7 +61,6 @@ public final class CompressionRecipeScanner {
             || ingredients.stream().anyMatch(Ingredient::isCustom)
             || inputs.stream().anyMatch(stack -> !stack.isComponentsPatchEmpty())
             || hasRemainder(recipe, CraftingInput.of(recipe.getWidth(), recipe.getHeight(), inputs))) {
-            rejectKnownItems(ingredients, output, rejected);
             return;
         }
         links.add(new CompressionLink(id(inputs.getFirst().getItem()), id(output.getItem()), ratio));
@@ -73,8 +68,7 @@ public final class CompressionRecipeScanner {
 
     private static void scanDecompression(final CraftingRecipe recipe,
                                           final HolderLookup.Provider registries,
-                                          final List<CompressionLink> links,
-                                          final Set<ResourceLocation> rejected) {
+                                          final List<CompressionLink> links) {
         final ItemStack output = recipe.getResultItem(registries);
         final int ratio = output.getCount();
         final List<ItemStack> inputs = exactInputs(recipe.getIngredients());
@@ -85,9 +79,6 @@ public final class CompressionRecipeScanner {
             || !output.isComponentsPatchEmpty()
             || inputs.size() != 1
             || hasRemainder(recipe, CraftingInput.of(1, 1, inputs))) {
-            if (ratio == 4 || ratio == 9) {
-                rejectKnownItems(recipe.getIngredients(), output, rejected);
-            }
             return;
         }
         links.add(new CompressionLink(id(output.getItem()), id(inputs.getFirst().getItem()), ratio));
@@ -121,21 +112,6 @@ public final class CompressionRecipeScanner {
 
     private static boolean hasRemainder(final CraftingRecipe recipe, final CraftingInput input) {
         return recipe.getRemainingItems(input).stream().anyMatch(stack -> !stack.isEmpty());
-    }
-
-    private static void rejectKnownItems(final List<Ingredient> ingredients,
-                                         final ItemStack output,
-                                         final Set<ResourceLocation> rejected) {
-        final List<ResourceLocation> inputs = ingredients.stream()
-            .flatMap(ingredient -> Arrays.stream(ingredient.getItems()))
-            .filter(stack -> !stack.isEmpty())
-            .map(ItemStack::getItem)
-            .map(CompressionRecipeScanner::id)
-            .toList();
-        if (!output.isEmpty()) {
-            rejected.add(id(output.getItem()));
-        }
-        rejected.addAll(inputs);
     }
 
     private static ResourceLocation id(final Item item) {

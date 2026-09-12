@@ -168,7 +168,7 @@ public abstract class StateTrackedStorageMixin implements CompositeAwareChild {
             if (!storage.isFormEnabled(form.itemId())) {
                 continue;
             }
-            final ResourceKey resource = storage.getFamily().resource(form);
+            final ResourceKey resource = storage.resource(form);
             if (parentUpdatesResource && resource.equals(changedResource)) {
                 continue;
             }

@@ -2,7 +2,7 @@ package me.almana.refined_oddities.menu;
 
 import com.refinedmods.refinedstorage.common.api.RefinedStorageApi;
 import java.util.Optional;
-import me.almana.refined_oddities.item.CompressionStorageDiskItem;
+import me.almana.refined_oddities.item.BulkStorageDiskItem;
 import me.almana.refined_oddities.storage.CompressionFamily;
 import me.almana.refined_oddities.storage.CompressionStorage;
 import net.minecraft.world.InteractionHand;
@@ -39,7 +39,7 @@ final class CompressionConfigurationData implements ContainerData {
 
     private Optional<CompressionStorage> resolve() {
         final ItemStack stack = player.getItemInHand(hand);
-        if (!(stack.getItem() instanceof CompressionStorageDiskItem disk)) {
+        if (!(stack.getItem() instanceof BulkStorageDiskItem disk)) {
             return Optional.empty();
         }
         return disk.resolve(RefinedStorageApi.INSTANCE.getStorageRepository(player.level()), stack)

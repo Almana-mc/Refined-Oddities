@@ -1,6 +1,7 @@
 package me.almana.refined_oddities.menu;
 
 import com.refinedmods.refinedstorage.common.api.RefinedStorageApi;
+import com.refinedmods.refinedstorage.common.support.resource.ItemResource;
 import java.util.Optional;
 import me.almana.refined_oddities.content.ModItems;
 import me.almana.refined_oddities.content.ModMenus;
@@ -70,9 +71,7 @@ public final class CompressionConfigurationMenu extends AbstractContainerMenu {
             return;
         }
         storage().ifPresent(value -> {
-            value.getConfiguredItemId().ifPresent(itemId ->
-                selector.setItem(0, new ItemStack(BuiltInRegistries.ITEM.get(itemId)))
-            );
+            value.getConfiguredResource().ifPresent(resource -> selector.setItem(0, resource.toItemStack()));
             syncStateSlots(value.getFamily());
         });
     }
@@ -107,14 +106,15 @@ public final class CompressionConfigurationMenu extends AbstractContainerMenu {
 
     static CompressionStorage.ConfigurationResult configure(final CompressionStorage storage,
                                                             final ItemStack selected) {
-        if (selected.isEmpty() || !selected.isComponentsPatchEmpty()) {
+        if (selected.isEmpty()) {
             return CompressionStorage.ConfigurationResult.INVALID_FAMILY;
         }
-        final Optional<CompressionFamily> family = CompressionRecipeCatalog.INSTANCE.familyFor(selected.getItem());
-        return family.map(value -> storage.configure(
-            value,
-            BuiltInRegistries.ITEM.getKey(selected.getItem())
-        )).orElse(CompressionStorage.ConfigurationResult.INVALID_FAMILY);
+        final ItemResource resource = ItemResource.ofItemStack(selected.copyWithCount(1));
+        final CompressionFamily single = CompressionFamily.single(BuiltInRegistries.ITEM.getKey(selected.getItem()));
+        final CompressionFamily family = selected.isComponentsPatchEmpty()
+            ? CompressionRecipeCatalog.INSTANCE.familyFor(selected.getItem()).orElse(single)
+            : single;
+        return storage.configure(family, resource);
     }
 
     @Override
@@ -187,7 +187,7 @@ public final class CompressionConfigurationMenu extends AbstractContainerMenu {
 
     private Optional<CompressionStorage> storage() {
         final ItemStack stack = player.getItemInHand(hand);
-        if (!(stack.getItem() instanceof me.almana.refined_oddities.item.CompressionStorageDiskItem disk)) {
+        if (!(stack.getItem() instanceof me.almana.refined_oddities.item.BulkStorageDiskItem disk)) {
             return Optional.empty();
         }
         return disk.resolve(RefinedStorageApi.INSTANCE.getStorageRepository(player.level()), stack)
@@ -207,7 +207,7 @@ public final class CompressionConfigurationMenu extends AbstractContainerMenu {
     @Override
     public boolean stillValid(final Player player) {
         final ItemStack current = player.getItemInHand(hand);
-        return current.is(ModItems.COMPRESSION_STORAGE_DISK.get())
+        return current.is(ModItems.BULK_STORAGE_DISK.get())
             && ItemStack.isSameItemSameComponents(openedStack, current);
     }
 

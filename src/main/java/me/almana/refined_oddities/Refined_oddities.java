@@ -36,9 +36,9 @@ public class Refined_oddities {
 
     private void addCreativeItems(final BuildCreativeModeTabContentsEvent event) {
         if (event.getTabKey().location().equals(RefinedStorageApi.INSTANCE.getCreativeModeTabId())) {
-            event.accept(ModItems.COMPRESSION_STORAGE_DISK.get());
-            event.accept(ModItems.COMPRESSION_STORAGE_HOUSING.get());
-            event.accept(ModItems.COMPRESSION_STORAGE_PART.get());
+            event.accept(ModItems.BULK_STORAGE_DISK.get());
+            event.accept(ModItems.BULK_STORAGE_HOUSING.get());
+            event.accept(ModItems.BULK_STORAGE_PART.get());
         }
     }
 

@@ -10,6 +10,7 @@ import com.refinedmods.refinedstorage.api.storage.composite.ParentComposite;
 import com.refinedmods.refinedstorage.api.storage.limited.LimitedStorage;
 import com.refinedmods.refinedstorage.common.api.storage.SerializableStorage;
 import com.refinedmods.refinedstorage.common.api.storage.StorageType;
+import com.refinedmods.refinedstorage.common.support.resource.ItemResource;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
@@ -17,6 +18,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import me.almana.refined_oddities.crafting.CompressionActors;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 
 public final class CompressionStorage implements SerializableStorage, LimitedStorage, CompositeAwareChild {
@@ -27,25 +29,21 @@ public final class CompressionStorage implements SerializableStorage, LimitedSto
     private final Set<ParentComposite> trackedParents = new HashSet<>();
     private long baseUnits;
     private CompressionFamily family;
-    private Optional<ResourceLocation> configuredItemId;
+    private Optional<ItemResource> configuredResource;
     private final Set<ResourceLocation> enabledItemIds = new HashSet<>();
     private final boolean quarantined;
 
     public CompressionStorage(final Runnable listener) {
-        this(0, CompressionFamily.empty(), Optional.empty(), listener);
+        this(0, CompressionFamily.empty(), Optional.empty(), Optional.empty(), listener);
     }
 
     public CompressionStorage(final long baseUnits, final CompressionFamily family, final Runnable listener) {
-        this(baseUnits, family, Optional.empty(), listener);
-    }
-
-    public CompressionStorage(final long baseUnits, final CompressionFamily family, final Optional<ResourceLocation> configuredItemId, final Runnable listener) {
-        this(baseUnits, family, configuredItemId, Optional.empty(), listener);
+        this(baseUnits, family, Optional.empty(), Optional.empty(), listener);
     }
 
     public CompressionStorage(final long baseUnits,
                               final CompressionFamily family,
-                              final Optional<ResourceLocation> configuredItemId,
+                              final Optional<ItemResource> configuredResource,
                               final Optional<List<ResourceLocation>> enabledItems,
                               final Runnable listener) {
         this.baseUnits = baseUnits;
@@ -54,14 +52,14 @@ public final class CompressionStorage implements SerializableStorage, LimitedSto
             .map(CompressionForm::itemId)
             .toList());
         enabledItemIds.addAll(enabled);
-        this.configuredItemId = configuredItemId.or(() -> family.forms().stream()
+        this.configuredResource = configuredResource.or(() -> family.forms().stream()
             .findFirst()
-            .map(CompressionForm::itemId));
+            .map(form -> new ItemResource(BuiltInRegistries.ITEM.get(form.itemId()))));
         this.listener = listener;
         this.quarantined = baseUnits < 0
             || baseUnits > CAPACITY
             || !family.isValidSnapshot()
-            || !isConfiguredItemValid(family, this.configuredItemId)
+            || !isConfiguredResourceValid(family, this.configuredResource)
             || !isEnabledSelectionValid(family, enabled);
     }
 
@@ -79,7 +77,7 @@ public final class CompressionStorage implements SerializableStorage, LimitedSto
         if (quarantined) {
             return 0;
         }
-        final var form = family.find(resource);
+        final var form = findForm(resource);
         if (form.isEmpty() || !isFormEnabled(form.get().itemId())) {
             return 0;
         }
@@ -96,10 +94,10 @@ public final class CompressionStorage implements SerializableStorage, LimitedSto
     }
     private long extract(final ResourceKey resource, final long amount, final Action action, final Actor actor, final boolean parentUpdatesResource) {
         ResourceAmount.validate(resource, amount);
-        if (quarantined || actor == CompressionActors.ORDINARY_ONLY) {
+        if (quarantined || actor == CompressionActors.ORDINARY_ONLY && usesCompression()) {
             return 0;
         }
-        final var form = family.find(resource);
+        final var form = findForm(resource);
         if (form.isEmpty() || !isFormEnabled(form.get().itemId())) {
             return 0;
         }
@@ -119,7 +117,7 @@ public final class CompressionStorage implements SerializableStorage, LimitedSto
             }
             final long previous = before / form.weight();
             final long current = baseUnits / form.weight();
-            final ResourceKey resource = family.resource(form);
+            final ResourceKey resource = resource(form);
             if (!parentUpdatesResource || !resource.equals(changedResource)) {
                 notifyParents(resource, current - previous);
             }
@@ -147,7 +145,7 @@ public final class CompressionStorage implements SerializableStorage, LimitedSto
             }
             final long amount = baseUnits / form.weight();
             if (amount > 0) {
-                resources.add(new ResourceAmount(family.resource(form), amount));
+                resources.add(new ResourceAmount(resource(form), amount));
             }
         }
         return resources;
@@ -171,8 +169,8 @@ public final class CompressionStorage implements SerializableStorage, LimitedSto
         return family;
     }
 
-    public Optional<ResourceLocation> getConfiguredItemId() {
-        return configuredItemId;
+    public Optional<ItemResource> getConfiguredResource() {
+        return configuredResource;
     }
 
     public boolean isFormEnabled(final ResourceLocation itemId) {
@@ -194,6 +192,10 @@ public final class CompressionStorage implements SerializableStorage, LimitedSto
         return !parents.isEmpty() || !trackedParents.isEmpty();
     }
 
+    public boolean usesCompression() {
+        return family.forms().size() > 1;
+    }
+
     public void onTrackedAddedIntoComposite(final ParentComposite parentComposite) {
         trackedParents.add(parentComposite);
     }
@@ -211,6 +213,11 @@ public final class CompressionStorage implements SerializableStorage, LimitedSto
 
     public ConfigurationResult configure(final CompressionFamily newFamily,
                                          final ResourceLocation newConfiguredItemId) {
+        return configure(newFamily, new ItemResource(BuiltInRegistries.ITEM.get(newConfiguredItemId)));
+    }
+
+    public ConfigurationResult configure(final CompressionFamily newFamily,
+                                         final ItemResource newConfiguredResource) {
         if (quarantined) {
             return ConfigurationResult.QUARANTINED;
         }
@@ -222,13 +229,13 @@ public final class CompressionStorage implements SerializableStorage, LimitedSto
         }
         if (!newFamily.isValidSnapshot()
             || !newFamily.isConfigured()
-            || !isConfiguredItemValid(newFamily, Optional.of(newConfiguredItemId))) {
+            || !isConfiguredResourceValid(newFamily, Optional.of(newConfiguredResource))) {
             return ConfigurationResult.INVALID_FAMILY;
         }
         family = newFamily;
         enabledItemIds.clear();
         newFamily.forms().forEach(form -> enabledItemIds.add(form.itemId()));
-        configuredItemId = Optional.of(newConfiguredItemId);
+        configuredResource = Optional.of(newConfiguredResource);
         listener.run();
         return ConfigurationResult.SUCCESS;
     }
@@ -245,7 +252,7 @@ public final class CompressionStorage implements SerializableStorage, LimitedSto
         }
         family = CompressionFamily.empty();
         enabledItemIds.clear();
-        configuredItemId = Optional.empty();
+        configuredResource = Optional.empty();
         listener.run();
         return ConfigurationResult.SUCCESS;
     }
@@ -275,12 +282,30 @@ public final class CompressionStorage implements SerializableStorage, LimitedSto
         return ConfigurationResult.SUCCESS;
     }
 
-    private static boolean isConfiguredItemValid(final CompressionFamily family, final Optional<ResourceLocation> configuredItemId) {
-        if (!family.isConfigured()) {
-            return configuredItemId.isEmpty();
+    private Optional<CompressionForm> findForm(final ResourceKey resource) {
+        if (family.forms().size() == 1 && configuredResource.isPresent()) {
+            return configuredResource.get().equals(resource) ? Optional.of(family.forms().getFirst()) : Optional.empty();
         }
-        return configuredItemId.filter(itemId -> family.forms().stream()
-            .anyMatch(form -> form.itemId().equals(itemId))).isPresent();
+        return family.find(resource);
+    }
+
+    public ResourceKey resource(final CompressionForm form) {
+        if (family.forms().size() == 1 && configuredResource.isPresent()) {
+            return configuredResource.get();
+        }
+        return family.resource(form);
+    }
+
+    private static boolean isConfiguredResourceValid(final CompressionFamily family,
+                                                       final Optional<ItemResource> configuredResource) {
+        if (!family.isConfigured()) {
+            return configuredResource.isEmpty();
+        }
+        return configuredResource.filter(resource -> {
+            final ResourceLocation itemId = BuiltInRegistries.ITEM.getKey(resource.item());
+            return family.forms().stream().anyMatch(form -> form.itemId().equals(itemId))
+                && (resource.components().isEmpty() || family.forms().size() == 1);
+        }).isPresent();
     }
 
     private static boolean isEnabledSelectionValid(final CompressionFamily family,

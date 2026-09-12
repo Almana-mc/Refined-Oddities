@@ -25,9 +25,12 @@ import me.almana.refined_oddities.Refined_oddities;
 import me.almana.refined_oddities.storage.CompressionFamily;
 import me.almana.refined_oddities.storage.CompressionForm;
 import me.almana.refined_oddities.storage.CompressionStorage;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.network.chat.Component;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
@@ -111,6 +114,27 @@ public final class CompressionCraftingGameTests {
         helper.assertValueEqual(restored.getState(), TaskState.RUNNING, "restored task state");
         assertTaskStorage(helper, restored.createSnapshot().copyInternalStorage(), 1, 1);
         helper.assertValueEqual(root.getStored(), 0L, "compression pool remainder");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void taskExtractsExactComponentItemAsOrdinaryStorage(final GameTestHelper helper) {
+        final ItemStack configured = new ItemStack(Items.DIAMOND_SWORD);
+        configured.set(DataComponents.CUSTOM_NAME, Component.literal("Exact blade"));
+        final ItemResource resource = ItemResource.ofItemStack(configured);
+        final CompressionStorage storage = new CompressionStorage(() -> { });
+        storage.configure(
+            CompressionFamily.single(BuiltInRegistries.ITEM.getKey(Items.DIAMOND_SWORD)),
+            resource
+        );
+        storage.insert(resource, 2, Action.EXECUTE, Actor.EMPTY);
+        final RootStorageImpl root = CompressionDiskDriveFixture.rootWith(storage);
+        final TaskImpl task = new TaskImpl(plan(List.of(new ResourceAmount(resource, 1))), Actor.EMPTY, false);
+
+        helper.assertTrue(task.step(root, null, StepBehavior.DEFAULT, TaskListener.EMPTY), "task did not extract");
+        helper.assertValueEqual(task.getState(), TaskState.RUNNING, "task state");
+        helper.assertValueEqual(task.createSnapshot().copyInternalStorage().get(resource), 1L, "task exact item");
+        helper.assertValueEqual(root.get(resource), 1L, "disk exact item remainder");
         helper.succeed();
     }
 

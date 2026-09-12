@@ -12,14 +12,19 @@ import java.util.List;
 import java.util.Map;
 import me.almana.refined_oddities.Refined_oddities;
 import me.almana.refined_oddities.content.ModItems;
+import me.almana.refined_oddities.crafting.CompressionStorageWalker;
 import me.almana.refined_oddities.menu.CompressionConfigurationMenu;
 import me.almana.refined_oddities.recipe.CompressionRecipeCatalog;
+import me.almana.refined_oddities.recipe.CompressionRecipeScanner;
 import me.almana.refined_oddities.storage.CompressionFamily;
 import me.almana.refined_oddities.storage.CompressionForm;
 import me.almana.refined_oddities.storage.CompressionStorage;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.inventory.ClickType;
 import net.minecraft.world.item.ItemStack;
@@ -36,10 +41,10 @@ public final class CompressionStorageGameTests {
 
     @GameTest(template = "empty")
     public static void diskResolvesThroughDiskDriveInventory(final GameTestHelper helper) {
-        final ItemStack diskStack = new ItemStack(ModItems.COMPRESSION_STORAGE_DISK.get());
+        final ItemStack diskStack = new ItemStack(ModItems.BULK_STORAGE_DISK.get());
         diskStack.inventoryTick(helper.getLevel(), helper.makeMockPlayer(GameType.SURVIVAL), 0, false);
         final var repository = RefinedStorageApi.INSTANCE.getStorageRepository(helper.getLevel());
-        final CompressionStorage storage = (CompressionStorage) ModItems.COMPRESSION_STORAGE_DISK.get()
+        final CompressionStorage storage = (CompressionStorage) ModItems.BULK_STORAGE_DISK.get()
             .resolve(repository, diskStack)
             .orElseThrow();
         storage.configure(ironFamily());
@@ -49,6 +54,14 @@ public final class CompressionStorageGameTests {
         inventory.setItem(0, diskStack);
         helper.assertTrue(inventory.resolve(0).orElseThrow() == storage, "Disk Drive resolved another storage");
         helper.assertValueEqual(inventory.resolve(0).orElseThrow().getStored(), 9L, "stored base units");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void bulkItemsUseNewIdsAndLegacyAliases(final GameTestHelper helper) {
+        assertBulkItemId(helper, ModItems.BULK_STORAGE_DISK.get(), "bulk_storage_disk", "compression_storage_disk");
+        assertBulkItemId(helper, ModItems.BULK_STORAGE_HOUSING.get(), "bulk_storage_housing", "compression_storage_housing");
+        assertBulkItemId(helper, ModItems.BULK_STORAGE_PART.get(), "bulk_storage_part", "compression_storage_part");
         helper.succeed();
     }
 
@@ -134,6 +147,24 @@ public final class CompressionStorageGameTests {
     }
 
     @GameTest(template = "empty")
+    public static void exactComponentDiskUsesOrdinaryPlanningPath(final GameTestHelper helper) {
+        final ItemStack configured = new ItemStack(Items.DIAMOND_SWORD);
+        configured.set(DataComponents.CUSTOM_NAME, Component.literal("Exact blade"));
+        final ItemResource resource = ItemResource.ofItemStack(configured);
+        final CompressionStorage storage = new CompressionStorage(() -> { });
+        storage.configure(
+            CompressionFamily.single(BuiltInRegistries.ITEM.getKey(Items.DIAMOND_SWORD)),
+            resource
+        );
+        final RootStorageImpl root = CompressionDiskDriveFixture.rootWith(storage);
+
+        helper.assertValueEqual(root.insert(resource, 3, Action.EXECUTE, Actor.EMPTY), 3L, "inserted exact items");
+        helper.assertValueEqual(root.get(resource), 3L, "cached exact items");
+        helper.assertTrue(CompressionStorageWalker.find(root).isEmpty(), "Exact disk entered compression planner");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
     public static void reloadCatalogFindsVanillaIronFamily(final GameTestHelper helper) {
         final var family = CompressionRecipeCatalog.INSTANCE.familyFor(Items.IRON_INGOT).orElseThrow();
         helper.assertValueEqual(family.forms().size(), 3, "iron family size");
@@ -144,9 +175,21 @@ public final class CompressionStorageGameTests {
     }
 
     @GameTest(template = "empty")
+    public static void vanillaLogToPlanksDoesNotRejectOakLogs(final GameTestHelper helper) {
+        final var result = CompressionRecipeScanner.scan(
+            helper.getLevel().getRecipeManager(),
+            helper.getLevel().registryAccess()
+        );
+        final var family = result.familyFor(BuiltInRegistries.ITEM.getKey(Items.OAK_LOG)).orElseThrow();
+
+        helper.assertValueEqual(family.forms().size(), 1, "oak log fallback family size");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
     public static void ghostSelectionDoesNotConsumeCarriedStack(final GameTestHelper helper) {
         final var player = helper.makeMockPlayer(GameType.SURVIVAL);
-        final ItemStack diskStack = new ItemStack(ModItems.COMPRESSION_STORAGE_DISK.get());
+        final ItemStack diskStack = new ItemStack(ModItems.BULK_STORAGE_DISK.get());
         player.setItemInHand(InteractionHand.MAIN_HAND, diskStack);
         diskStack.inventoryTick(helper.getLevel(), player, 0, true);
         final var menu = new CompressionConfigurationMenu(
@@ -160,18 +203,52 @@ public final class CompressionStorageGameTests {
 
         helper.assertValueEqual(menu.getCarried().getCount(), 32, "carried stack count");
         helper.assertTrue(menu.getSlot(0).getItem().is(Items.IRON_BLOCK), "Ghost slot did not show iron block");
-        final CompressionStorage storage = (CompressionStorage) ModItems.COMPRESSION_STORAGE_DISK.get()
+        final CompressionStorage storage = (CompressionStorage) ModItems.BULK_STORAGE_DISK.get()
             .resolve(RefinedStorageApi.INSTANCE.getStorageRepository(helper.getLevel()), diskStack)
             .orElseThrow();
-        helper.assertValueEqual(storage.getConfiguredItemId().orElseThrow(),
-            BuiltInRegistries.ITEM.getKey(Items.IRON_BLOCK), "configured item");
+        helper.assertValueEqual(storage.getConfiguredResource().orElseThrow(),
+            new ItemResource(Items.IRON_BLOCK), "configured item");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void componentSelectionSurvivesMenuReopen(final GameTestHelper helper) {
+        final var player = helper.makeMockPlayer(GameType.SURVIVAL);
+        final ItemStack diskStack = new ItemStack(ModItems.BULK_STORAGE_DISK.get());
+        player.setItemInHand(InteractionHand.MAIN_HAND, diskStack);
+        diskStack.inventoryTick(helper.getLevel(), player, 0, true);
+        final ItemStack selected = new ItemStack(Items.DIAMOND_SWORD);
+        selected.set(DataComponents.CUSTOM_NAME, Component.literal("Exact blade"));
+        final var menu = new CompressionConfigurationMenu(
+            2,
+            player.getInventory(),
+            InteractionHand.MAIN_HAND
+        );
+        menu.setCarried(selected.copy());
+
+        menu.clicked(0, 0, ClickType.PICKUP, player);
+
+        final CompressionStorage storage = (CompressionStorage) ModItems.BULK_STORAGE_DISK.get()
+            .resolve(RefinedStorageApi.INSTANCE.getStorageRepository(helper.getLevel()), diskStack)
+            .orElseThrow();
+        helper.assertValueEqual(storage.getConfiguredResource().orElseThrow(),
+            ItemResource.ofItemStack(selected), "configured item");
+        final var reopened = new CompressionConfigurationMenu(
+            3,
+            player.getInventory(),
+            InteractionHand.MAIN_HAND
+        );
+        helper.assertTrue(
+            ItemStack.isSameItemSameComponents(selected, reopened.getSlot(0).getItem()),
+            "Reopened slot lost item components"
+        );
         helper.succeed();
     }
 
     @GameTest(template = "empty")
     public static void shiftClickSelectsWithoutMovingInventoryStack(final GameTestHelper helper) {
         final var player = helper.makeMockPlayer(GameType.SURVIVAL);
-        final ItemStack diskStack = new ItemStack(ModItems.COMPRESSION_STORAGE_DISK.get());
+        final ItemStack diskStack = new ItemStack(ModItems.BULK_STORAGE_DISK.get());
         player.setItemInHand(InteractionHand.MAIN_HAND, diskStack);
         diskStack.inventoryTick(helper.getLevel(), player, 0, true);
         player.getInventory().setItem(9, new ItemStack(Items.IRON_INGOT, 24));
@@ -185,18 +262,18 @@ public final class CompressionStorageGameTests {
 
         helper.assertValueEqual(player.getInventory().getItem(9).getCount(), 24, "inventory stack count");
         helper.assertTrue(menu.getSlot(0).getItem().is(Items.IRON_INGOT), "Ghost slot did not show iron ingot");
-        final CompressionStorage storage = (CompressionStorage) ModItems.COMPRESSION_STORAGE_DISK.get()
+        final CompressionStorage storage = (CompressionStorage) ModItems.BULK_STORAGE_DISK.get()
             .resolve(RefinedStorageApi.INSTANCE.getStorageRepository(helper.getLevel()), diskStack)
             .orElseThrow();
-        helper.assertValueEqual(storage.getConfiguredItemId().orElseThrow(),
-            BuiltInRegistries.ITEM.getKey(Items.IRON_INGOT), "configured item");
+        helper.assertValueEqual(storage.getConfiguredResource().orElseThrow(),
+            new ItemResource(Items.IRON_INGOT), "configured item");
         helper.succeed();
     }
 
     @GameTest(template = "empty")
     public static void jeiSelectionUsesMenuButtonPath(final GameTestHelper helper) {
         final var player = helper.makeMockPlayer(GameType.SURVIVAL);
-        final ItemStack diskStack = new ItemStack(ModItems.COMPRESSION_STORAGE_DISK.get());
+        final ItemStack diskStack = new ItemStack(ModItems.BULK_STORAGE_DISK.get());
         player.setItemInHand(InteractionHand.MAIN_HAND, diskStack);
         diskStack.inventoryTick(helper.getLevel(), player, 0, true);
         final var menu = new CompressionConfigurationMenu(
@@ -209,12 +286,12 @@ public final class CompressionStorageGameTests {
 
         helper.assertTrue(menu.clickMenuButton(player, buttonId), "JEI selection was rejected");
 
-        final CompressionStorage storage = (CompressionStorage) ModItems.COMPRESSION_STORAGE_DISK.get()
+        final CompressionStorage storage = (CompressionStorage) ModItems.BULK_STORAGE_DISK.get()
             .resolve(RefinedStorageApi.INSTANCE.getStorageRepository(helper.getLevel()), diskStack)
             .orElseThrow();
         helper.assertTrue(menu.getSlot(0).getItem().is(Items.IRON_BLOCK), "Ghost slot did not show JEI item");
-        helper.assertValueEqual(storage.getConfiguredItemId().orElseThrow(),
-            BuiltInRegistries.ITEM.getKey(Items.IRON_BLOCK), "configured item");
+        helper.assertValueEqual(storage.getConfiguredResource().orElseThrow(),
+            new ItemResource(Items.IRON_BLOCK), "configured item");
         final var reopened = new CompressionConfigurationMenu(
             4,
             player.getInventory(),
@@ -227,7 +304,7 @@ public final class CompressionStorageGameTests {
     @GameTest(template = "empty")
     public static void normalInventoryClickStillMovesStack(final GameTestHelper helper) {
         final var player = helper.makeMockPlayer(GameType.SURVIVAL);
-        final ItemStack diskStack = new ItemStack(ModItems.COMPRESSION_STORAGE_DISK.get());
+        final ItemStack diskStack = new ItemStack(ModItems.BULK_STORAGE_DISK.get());
         player.setItemInHand(InteractionHand.MAIN_HAND, diskStack);
         player.getInventory().setItem(9, new ItemStack(Items.IRON_INGOT, 5));
         final var menu = new CompressionConfigurationMenu(
@@ -246,7 +323,7 @@ public final class CompressionStorageGameTests {
     @GameTest(template = "empty")
     public static void configurationMenuShowsAndTogglesEveryForm(final GameTestHelper helper) {
         final var player = helper.makeMockPlayer(GameType.SURVIVAL);
-        final ItemStack diskStack = new ItemStack(ModItems.COMPRESSION_STORAGE_DISK.get());
+        final ItemStack diskStack = new ItemStack(ModItems.BULK_STORAGE_DISK.get());
         player.setItemInHand(InteractionHand.MAIN_HAND, diskStack);
         diskStack.inventoryTick(helper.getLevel(), player, 0, true);
         final var menu = new CompressionConfigurationMenu(
@@ -284,5 +361,15 @@ public final class CompressionStorageGameTests {
             new CompressionForm(BuiltInRegistries.ITEM.getKey(Items.IRON_INGOT), 9),
             new CompressionForm(BuiltInRegistries.ITEM.getKey(Items.IRON_BLOCK), 81)
         ));
+    }
+
+    private static void assertBulkItemId(final GameTestHelper helper,
+                                         final net.minecraft.world.item.Item item,
+                                         final String bulkPath,
+                                         final String legacyPath) {
+        final var bulkId = ResourceLocation.fromNamespaceAndPath(Refined_oddities.MODID, bulkPath);
+        final var legacyId = ResourceLocation.fromNamespaceAndPath(Refined_oddities.MODID, legacyPath);
+        helper.assertValueEqual(BuiltInRegistries.ITEM.getKey(item), bulkId, bulkPath);
+        helper.assertTrue(BuiltInRegistries.ITEM.get(legacyId) == item, legacyPath + " alias");
     }
 }

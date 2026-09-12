@@ -18,12 +18,12 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 
-public final class CompressionStorageDiskItem extends AbstractStorageContainerItem {
+public final class BulkStorageDiskItem extends AbstractStorageContainerItem {
     private static final Component TITLE = Component.translatable(
-        "menu.refined_oddities.compression_storage_configuration"
+        "menu.refined_oddities.bulk_storage_configuration"
     );
 
-    public CompressionStorageDiskItem() {
+    public BulkStorageDiskItem() {
         super(
             new Item.Properties().stacksTo(1).fireResistant(),
             RefinedStorageApi.INSTANCE.getStorageContainerItemHelper()
@@ -85,11 +85,11 @@ public final class CompressionStorageDiskItem extends AbstractStorageContainerIt
 
     @Override
     protected ItemStack createPrimaryDisassemblyByproduct(final int count) {
-        return new ItemStack(ModItems.COMPRESSION_STORAGE_HOUSING.get(), count);
+        return new ItemStack(ModItems.BULK_STORAGE_HOUSING.get(), count);
     }
 
     @Override
     protected ItemStack createSecondaryDisassemblyByproduct(final int count) {
-        return new ItemStack(ModItems.COMPRESSION_STORAGE_PART.get(), count);
+        return new ItemStack(ModItems.BULK_STORAGE_PART.get(), count);
     }
 }

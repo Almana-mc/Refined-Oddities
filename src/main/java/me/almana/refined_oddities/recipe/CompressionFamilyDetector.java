@@ -25,6 +25,9 @@ public final class CompressionFamilyDetector {
         final Set<ResourceLocation> invalid = new HashSet<>(rejectedItems);
         final Map<Pair, Set<Integer>> compressionRatios = collectRatios(compression);
         final Map<Pair, Set<Integer>> decompressionRatios = collectRatios(decompression);
+        final List<Edge> candidates = new ArrayList<>();
+        final Map<ResourceLocation, Integer> outgoingCounts = new HashMap<>();
+        final Map<ResourceLocation, Integer> incomingCounts = new HashMap<>();
         final Map<ResourceLocation, Edge> outgoing = new HashMap<>();
         final Map<ResourceLocation, Edge> incoming = new HashMap<>();
         final Map<ResourceLocation, Set<ResourceLocation>> neighbors = new HashMap<>();
@@ -39,19 +42,28 @@ public final class CompressionFamilyDetector {
                 continue;
             }
             if (compress.size() != 1 || !compress.equals(decompress)) {
-                invalid.add(pair.lower());
-                invalid.add(pair.higher());
                 continue;
             }
             final int ratio = compress.iterator().next();
             final Edge edge = new Edge(pair.lower(), pair.higher(), ratio);
-            addEdge(outgoing, edge.lower(), edge, invalid);
-            addEdge(incoming, edge.higher(), edge, invalid);
+            if (invalid.contains(edge.lower()) || invalid.contains(edge.higher())) {
+                continue;
+            }
+            candidates.add(edge);
+            outgoingCounts.merge(edge.lower(), 1, Integer::sum);
+            incomingCounts.merge(edge.higher(), 1, Integer::sum);
+        }
+
+        for (final Edge edge : candidates) {
+            if (outgoingCounts.get(edge.lower()) != 1 || incomingCounts.get(edge.higher()) != 1) {
+                continue;
+            }
+            outgoing.put(edge.lower(), edge);
+            incoming.put(edge.higher(), edge);
             neighbors.computeIfAbsent(edge.lower(), key -> new HashSet<>()).add(edge.higher());
             neighbors.computeIfAbsent(edge.higher(), key -> new HashSet<>()).add(edge.lower());
         }
 
-        propagateInvalid(neighbors, invalid);
         final Map<ResourceLocation, CompressionFamily> families = new HashMap<>();
         final Set<ResourceLocation> visited = new HashSet<>();
         for (final ResourceLocation item : neighbors.keySet()) {
@@ -60,10 +72,6 @@ public final class CompressionFamilyDetector {
             }
             final Set<ResourceLocation> component = component(item, neighbors);
             visited.addAll(component);
-            if (component.stream().anyMatch(invalid::contains)) {
-                invalid.addAll(component);
-                continue;
-            }
             final Optional<CompressionFamily> family = buildFamily(component, outgoing, incoming);
             if (family.isEmpty()) {
                 invalid.addAll(component);
@@ -83,32 +91,6 @@ public final class CompressionFamilyDetector {
             result.computeIfAbsent(new Pair(link.lower(), link.higher()), key -> new HashSet<>()).add(link.ratio());
         }
         return result;
-    }
-
-    private static void addEdge(final Map<ResourceLocation, Edge> edges,
-                                final ResourceLocation key,
-                                final Edge edge,
-                                final Set<ResourceLocation> invalid) {
-        final Edge previous = edges.putIfAbsent(key, edge);
-        if (previous != null && !previous.equals(edge)) {
-            invalid.add(previous.lower());
-            invalid.add(previous.higher());
-            invalid.add(edge.lower());
-            invalid.add(edge.higher());
-        }
-    }
-
-    private static void propagateInvalid(final Map<ResourceLocation, Set<ResourceLocation>> neighbors,
-                                         final Set<ResourceLocation> invalid) {
-        final ArrayDeque<ResourceLocation> queue = new ArrayDeque<>(invalid);
-        while (!queue.isEmpty()) {
-            final ResourceLocation item = queue.removeFirst();
-            for (final ResourceLocation neighbor : neighbors.getOrDefault(item, Set.of())) {
-                if (invalid.add(neighbor)) {
-                    queue.addLast(neighbor);
-                }
-            }
-        }
     }
 
     private static Set<ResourceLocation> component(final ResourceLocation first,

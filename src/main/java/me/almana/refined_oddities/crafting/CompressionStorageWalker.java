@@ -24,14 +24,14 @@ public final class CompressionStorageWalker {
     private static void walk(final Storage source, final List<CompressionStorageHandle> result) {
         if (source instanceof StateTrackedStorage tracked) {
             if (tracked.getDelegate() instanceof CompressionStorage compression) {
-                if (!compression.isQuarantined() && compression.getFamily().isConfigured()) {
+                if (!compression.isQuarantined() && compression.usesCompression()) {
                     result.add(new CompressionStorageHandle(tracked, compression));
                 }
             } else {
                 walk(tracked.getDelegate(), result);
             }
         } else if (source instanceof CompressionStorage compression) {
-            if (!compression.isQuarantined() && compression.getFamily().isConfigured()) {
+            if (!compression.isQuarantined() && compression.usesCompression()) {
                 result.add(new CompressionStorageHandle(compression, compression));
             }
         } else if (source instanceof CompositeStorage composite) {
