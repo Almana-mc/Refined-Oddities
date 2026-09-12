@@ -1,0 +1,16 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "me.almana.refined_oddities.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [
+    "CompositeStorageImplMixin",
+    "CraftingStateMixin",
+    "RootStorageImplMixin",
+    "StateTrackedStorageMixin",
+    "TaskImplMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

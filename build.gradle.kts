@@ -17,12 +17,42 @@ val modVersion = property("mod_version") as String
 val modGroupId = property("mod_group_id") as String
 val modAuthors = property("mod_authors") as String
 val modDescription = property("mod_description") as String
+val refinedStorageVersion = property("refined_storage_version") as String
+val jeiVersion = property("jei_version") as String
+val jeiVersionRange = property("jei_version_range") as String
 
 version = modVersion
 group = modGroupId
 
 repositories {
     mavenLocal()
+    maven {
+        name = "Refined Mods"
+        url = uri("https://maven.creeperhost.net")
+        content {
+            includeGroup("com.refinedmods.refinedstorage")
+        }
+    }
+    maven {
+        name = "JEI"
+        url = uri("https://maven.blamejared.com")
+        content {
+            includeGroup("mezz.jei")
+        }
+    }
+}
+
+dependencies {
+    implementation("com.refinedmods.refinedstorage:refinedstorage-neoforge:$refinedStorageVersion")
+    compileOnly("mezz.jei:jei-$minecraftVersion-common-api:$jeiVersion")
+    compileOnly("mezz.jei:jei-$minecraftVersion-neoforge-api:$jeiVersion")
+    runtimeOnly("mezz.jei:jei-$minecraftVersion-neoforge:$jeiVersion")
+    testImplementation("org.junit.jupiter:junit-jupiter:5.11.4")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+}
+
+tasks.test {
+    useJUnitPlatform()
 }
 
 base {
@@ -77,6 +107,11 @@ neoForge {
             sourceSet(sourceSets.main.get())
         }
     }
+
+    unitTest {
+        enable()
+        testedMod = mods[modId]
+    }
 }
 
 sourceSets.main.get().resources.srcDir("src/generated/resources")
@@ -93,7 +128,9 @@ val generateModMetadata = tasks.register<ProcessResources>("generateModMetadata"
         "mod_license" to modLicense,
         "mod_version" to modVersion,
         "mod_authors" to modAuthors,
-        "mod_description" to modDescription
+        "mod_description" to modDescription,
+        "refined_storage_version" to refinedStorageVersion,
+        "jei_version_range" to jeiVersionRange
     )
     inputs.properties(replaceProperties)
     expand(replaceProperties)

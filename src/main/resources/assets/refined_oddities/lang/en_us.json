@@ -1,5 +1,21 @@
 {
-  "itemGroup.refined_oddities": "Example Mod Tab",
-  "block.refined_oddities.example_block": "Example Block",
-  "item.refined_oddities.example_item": "Example Item"
+  "item.refined_oddities.compression_storage_disk": "Compression Storage Disk",
+  "item.refined_oddities.compression_storage_housing": "Compression Storage Housing",
+  "item.refined_oddities.compression_storage_part": "Compression Storage Part",
+  "menu.refined_oddities.compression_storage_configuration": "Compression Storage",
+  "gui.refined_oddities.clear": "Clear",
+  "gui.refined_oddities.select_item": "Place item or Shift-click",
+  "gui.refined_oddities.connected": "Disconnect disk first",
+  "gui.refined_oddities.not_empty": "Empty disk before changing",
+  "gui.refined_oddities.quarantined": "Saved data is invalid",
+  "gui.refined_oddities.states": "States - Right-click",
+  "gui.refined_oddities.state_enabled": "Enabled on disk",
+  "gui.refined_oddities.state_disabled": "Disabled on disk",
+  "gui.refined_oddities.toggle_hint": "Right-click to toggle",
+  "gui.refined_oddities.result.success": "Configuration updated",
+  "gui.refined_oddities.result.connected": "Disk is connected",
+  "gui.refined_oddities.result.not_empty": "Disk must be empty",
+  "gui.refined_oddities.result.invalid_family": "No compression family found",
+  "gui.refined_oddities.result.quarantined": "Saved data is invalid",
+  "gui.refined_oddities.result.last_enabled": "Keep one state enabled"
 }
