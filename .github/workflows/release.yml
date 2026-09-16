@@ -1,0 +1,173 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      publish_github:
+        description: "Publish to GitHub Releases"
+        required: true
+        type: boolean
+        default: true
+      publish_curseforge:
+        description: "Publish to CurseForge"
+        required: true
+        type: boolean
+        default: true
+      confirm:
+        description: "Type RELEASE to confirm"
+        required: true
+        type: string
+
+concurrency:
+  group: release-${{ github.ref_name }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Validate and Build
+    runs-on: ubuntu-latest
+    outputs:
+      artifact_name: ${{ steps.meta.outputs.artifact_name }}
+      changelog: ${{ steps.meta.outputs.changelog }}
+      minecraft_version: ${{ steps.meta.outputs.minecraft_version }}
+      mod_name: ${{ steps.meta.outputs.mod_name }}
+      release_tag: ${{ steps.meta.outputs.release_tag }}
+
+    steps:
+      - name: Validate release target
+        shell: bash
+        env:
+          TARGET_BRANCH: ${{ github.ref_name }}
+          INPUT_CONFIRM: ${{ inputs.confirm }}
+        run: |
+          if [[ "$TARGET_BRANCH" != "1.21.1" ]]; then
+            echo "Release workflow must run from the 1.21.1 branch."
+            exit 1
+          fi
+
+          if [[ "$INPUT_CONFIRM" != "RELEASE" ]]; then
+            echo "Manual confirmation failed. Type RELEASE in the confirm input."
+            exit 1
+          fi
+
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          ref: ${{ github.ref }}
+
+      - name: Read project metadata
+        id: meta
+        shell: bash
+        run: |
+          minecraft_version="$(awk -F= '/^minecraft_version=/{print $2}' gradle.properties | tr -d '\r')"
+          mod_id="$(awk -F= '/^mod_id=/{print $2}' gradle.properties | tr -d '\r')"
+          mod_name="$(awk -F= '/^mod_name=/{print $2}' gradle.properties | tr -d '\r')"
+          mod_version="$(awk -F= '/^mod_version=/{print $2}' gradle.properties | tr -d '\r')"
+          release_tag="${minecraft_version}-${mod_version}"
+          artifact_name="${mod_id}-${mod_version}.jar"
+          changelog_file="CHANGELOGS/${release_tag}.md"
+
+          if [[ ! -f "$changelog_file" ]]; then
+            echo "Missing changelog file: $changelog_file"
+            exit 1
+          fi
+
+          echo "artifact_name=$artifact_name" >> "$GITHUB_OUTPUT"
+          echo "minecraft_version=$minecraft_version" >> "$GITHUB_OUTPUT"
+          echo "mod_name=$mod_name" >> "$GITHUB_OUTPUT"
+          echo "release_tag=$release_tag" >> "$GITHUB_OUTPUT"
+          {
+            echo "changelog<<EOF"
+            cat "$changelog_file"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Set up Java
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+
+      - name: Make Gradle wrapper executable
+        run: chmod +x gradlew
+
+      - name: Build
+        run: ./gradlew clean build --no-daemon --console=plain
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-build
+          path: build/libs/${{ steps.meta.outputs.artifact_name }}
+          if-no-files-found: error
+
+  publish-github:
+    name: Publish to GitHub Releases
+    needs: build
+    if: needs.build.result == 'success' && inputs.publish_github == true
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: release-build
+          path: build/libs
+
+      - name: Publish to GitHub Releases
+        uses: softprops/action-gh-release@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          tag_name: ${{ needs.build.outputs.release_tag }}
+          target_commitish: ${{ github.sha }}
+          name: ${{ needs.build.outputs.mod_name }} - ${{ needs.build.outputs.release_tag }}
+          body: ${{ needs.build.outputs.changelog }}
+          files: build/libs/${{ needs.build.outputs.artifact_name }}
+          fail_on_unmatched_files: true
+
+  publish-curseforge:
+    name: Publish to CurseForge
+    needs: build
+    if: needs.build.result == 'success' && inputs.publish_curseforge == true
+    runs-on: ubuntu-latest
+    env:
+      CURSEFORGE_PROJECT_ID: ${{ vars.CURSEFORGE_PROJECT_ID }}
+      CURSEFORGE_TOKEN: ${{ secrets.TOKEN_CURSEFORGE }}
+
+    steps:
+      - name: Validate CurseForge configuration
+        shell: bash
+        run: |
+          if [[ -z "$CURSEFORGE_PROJECT_ID" || -z "$CURSEFORGE_TOKEN" ]]; then
+            echo "CurseForge project ID and token must be configured."
+            exit 1
+          fi
+
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: release-build
+          path: build/libs
+
+      - name: Publish to CurseForge
+        uses: Kira-NT/mc-publish@v3.3.1
+        with:
+          name: ${{ needs.build.outputs.mod_name }} - ${{ needs.build.outputs.release_tag }}
+          version: ${{ needs.build.outputs.release_tag }}
+          files: build/libs/${{ needs.build.outputs.artifact_name }}
+          changelog: ${{ needs.build.outputs.changelog }}
+          loaders: neoforge
+          game-versions: ${{ needs.build.outputs.minecraft_version }}
+          java: 21
+          curseforge-environment: client, server
+          curseforge-id: ${{ env.CURSEFORGE_PROJECT_ID }}
+          curseforge-token: ${{ env.CURSEFORGE_TOKEN }}
