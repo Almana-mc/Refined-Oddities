@@ -1,6 +1,7 @@
 package me.almana.refined_oddities;
 
 import com.refinedmods.refinedstorage.common.api.RefinedStorageApi;
+import me.almana.refined_oddities.command.BulkDiskCommand;
 import me.almana.refined_oddities.content.ModItems;
 import me.almana.refined_oddities.content.ModMenus;
 import me.almana.refined_oddities.recipe.CompressionRecipeReloadHandler;
@@ -25,6 +26,7 @@ public class Refined_oddities {
         modBus.addListener(this::addCreativeItems);
         NeoForge.EVENT_BUS.addListener(this::addReloadListener);
         NeoForge.EVENT_BUS.addListener(this::tagsUpdated);
+        NeoForge.EVENT_BUS.addListener(BulkDiskCommand::register);
     }
 
     private void commonSetup(final FMLCommonSetupEvent event) {
@@ -37,8 +39,10 @@ public class Refined_oddities {
     private void addCreativeItems(final BuildCreativeModeTabContentsEvent event) {
         if (event.getTabKey().location().equals(RefinedStorageApi.INSTANCE.getCreativeModeTabId())) {
             event.accept(ModItems.BULK_STORAGE_DISK.get());
-            event.accept(ModItems.BULK_STORAGE_HOUSING.get());
             event.accept(ModItems.BULK_STORAGE_PART.get());
+            event.accept(ModItems.GLOWSTONE_ENRICHED_NETHERITE.get());
+            event.accept(ModItems.RAW_GLOWSTONE_ENRICHED_NETHERITE_PROCESSOR.get());
+            event.accept(ModItems.GLOWSTONE_ENRICHED_NETHERITE_PROCESSOR.get());
         }
     }
 

@@ -58,9 +58,30 @@ public final class CompressionStorageGameTests {
     }
 
     @GameTest(template = "empty")
+    public static void commandGivesFullConfiguredDisk(final GameTestHelper helper) {
+        final var player = helper.makeMockPlayer(GameType.CREATIVE);
+        helper.getLevel().getServer().getCommands().performPrefixedCommand(
+            player.createCommandSourceStack().withPermission(2).withSuppressedOutput(),
+            "refinedodditities disk minecraft:iron_ingot"
+        );
+
+        final ItemStack diskStack = player.getInventory().getItem(0);
+        helper.assertTrue(diskStack.is(ModItems.BULK_STORAGE_DISK.get()), "command did not give a bulk disk");
+        final CompressionStorage storage = (CompressionStorage) ModItems.BULK_STORAGE_DISK.get()
+            .resolve(RefinedStorageApi.INSTANCE.getStorageRepository(helper.getLevel()), diskStack)
+            .orElseThrow();
+        helper.assertValueEqual(
+            storage.getConfiguredResource().orElseThrow(),
+            new ItemResource(Items.IRON_INGOT),
+            "configured item"
+        );
+        helper.assertValueEqual(storage.getStored(), CompressionStorage.CAPACITY, "stored base units");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
     public static void bulkItemsUseNewIdsAndLegacyAliases(final GameTestHelper helper) {
         assertBulkItemId(helper, ModItems.BULK_STORAGE_DISK.get(), "bulk_storage_disk", "compression_storage_disk");
-        assertBulkItemId(helper, ModItems.BULK_STORAGE_HOUSING.get(), "bulk_storage_housing", "compression_storage_housing");
         assertBulkItemId(helper, ModItems.BULK_STORAGE_PART.get(), "bulk_storage_part", "compression_storage_part");
         helper.succeed();
     }

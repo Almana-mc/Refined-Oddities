@@ -1,9 +1,10 @@
 {
   "item.refined_oddities.bulk_storage_disk": "Bulk Storage Disk",
-  "item.refined_oddities.bulk_storage_housing": "Bulk Storage Housing",
   "item.refined_oddities.bulk_storage_part": "Bulk Storage Part",
+  "item.refined_oddities.glowstone_enriched_netherite": "Glowstone Enriched Netherite",
+  "item.refined_oddities.raw_glowstone_enriched_netherite_processor": "Raw Glowstone Enriched Netherite Processor",
+  "item.refined_oddities.glowstone_enriched_netherite_processor": "Glowstone Enriched Netherite Processor",
   "menu.refined_oddities.bulk_storage_configuration": "Bulk Storage",
-  "gui.refined_oddities.clear": "Clear",
   "gui.refined_oddities.select_item": "Place item or Shift-click",
   "gui.refined_oddities.connected": "Disconnect disk first",
   "gui.refined_oddities.not_empty": "Empty disk before changing",

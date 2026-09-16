@@ -22,7 +22,6 @@ import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 
 public final class CompressionConfigurationMenu extends AbstractContainerMenu {
-    public static final int CLEAR_BUTTON = 0;
     public static final int SELECT_ITEM_BUTTON_OFFSET = 1;
     public static final int TOGGLE_FORM_BUTTON_OFFSET = -1;
     private static final int FIRST_PLAYER_SLOT = 1 + CompressionFamily.MAX_FORMS;
@@ -79,11 +78,11 @@ public final class CompressionConfigurationMenu extends AbstractContainerMenu {
     private void addPlayerSlots(final Inventory inventory) {
         for (int row = 0; row < 3; row++) {
             for (int column = 0; column < 9; column++) {
-                addSlot(new Slot(inventory, column + row * 9 + 9, 8 + column * 18, 141 + row * 18));
+                addSlot(new Slot(inventory, column + row * 9 + 9, 8 + column * 18, 121 + row * 18));
             }
         }
         for (int column = 0; column < 9; column++) {
-            addSlot(new Slot(inventory, column, 8 + column * 18, 200));
+            addSlot(new Slot(inventory, column, 8 + column * 18, 180));
         }
     }
 
@@ -98,14 +97,17 @@ public final class CompressionConfigurationMenu extends AbstractContainerMenu {
         }
         if (slotId == 0
             && !clickingPlayer.level().isClientSide()
-            && clickType == ClickType.PICKUP
-            && !getCarried().isEmpty()) {
-            configureSelection(getCarried());
+            && clickType == ClickType.PICKUP) {
+            if (getCarried().isEmpty()) {
+                clearSelection();
+            } else {
+                configureSelection(getCarried());
+            }
         }
     }
 
-    static CompressionStorage.ConfigurationResult configure(final CompressionStorage storage,
-                                                            final ItemStack selected) {
+    public static CompressionStorage.ConfigurationResult configure(final CompressionStorage storage,
+                                                                    final ItemStack selected) {
         if (selected.isEmpty()) {
             return CompressionStorage.ConfigurationResult.INVALID_FAMILY;
         }
@@ -122,9 +124,6 @@ public final class CompressionConfigurationMenu extends AbstractContainerMenu {
         if (clickingPlayer.level().isClientSide()) {
             return false;
         }
-        if (id == CLEAR_BUTTON) {
-            return clearSelection();
-        }
         if (id <= TOGGLE_FORM_BUTTON_OFFSET) {
             return toggleForm(TOGGLE_FORM_BUTTON_OFFSET - id);
         }
@@ -135,19 +134,6 @@ public final class CompressionConfigurationMenu extends AbstractContainerMenu {
         return configureSelection(new ItemStack(BuiltInRegistries.ITEM.byId(itemId)));
     }
 
-    private boolean clearSelection() {
-        final CompressionStorage.ConfigurationResult configuration = storage()
-            .map(CompressionStorage::clearFamily)
-            .orElse(CompressionStorage.ConfigurationResult.INVALID_FAMILY);
-        result.set(configuration.ordinal() + 1);
-        if (configuration == CompressionStorage.ConfigurationResult.SUCCESS) {
-            selector.clearContent();
-            states.clearContent();
-        }
-        broadcastChanges();
-        return configuration == CompressionStorage.ConfigurationResult.SUCCESS;
-    }
-
     private boolean configureSelection(final ItemStack selected) {
         final CompressionStorage.ConfigurationResult configuration = storage()
             .map(value -> configure(value, selected))
@@ -156,6 +142,19 @@ public final class CompressionConfigurationMenu extends AbstractContainerMenu {
         if (configuration == CompressionStorage.ConfigurationResult.SUCCESS) {
             selector.setItem(0, selected.copyWithCount(1));
             storage().ifPresent(value -> syncStateSlots(value.getFamily()));
+        }
+        broadcastChanges();
+        return configuration == CompressionStorage.ConfigurationResult.SUCCESS;
+    }
+
+    private boolean clearSelection() {
+        final CompressionStorage.ConfigurationResult configuration = storage()
+            .map(CompressionStorage::clearFamily)
+            .orElse(CompressionStorage.ConfigurationResult.INVALID_FAMILY);
+        result.set(configuration.ordinal() + 1);
+        if (configuration == CompressionStorage.ConfigurationResult.SUCCESS) {
+            selector.clearContent();
+            states.clearContent();
         }
         broadcastChanges();
         return configuration == CompressionStorage.ConfigurationResult.SUCCESS;

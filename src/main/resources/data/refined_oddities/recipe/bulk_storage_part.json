@@ -1,0 +1,25 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "PEP",
+    "SRS",
+    "PSP"
+  ],
+  "key": {
+    "P": {
+      "item": "refined_oddities:glowstone_enriched_netherite_processor"
+    },
+    "E": {
+      "item": "refined_oddities:glowstone_enriched_netherite"
+    },
+    "S": {
+      "item": "refinedstorage:64k_storage_part"
+    },
+    "R": {
+      "item": "minecraft:redstone_block"
+    }
+  },
+  "result": {
+    "id": "refined_oddities:bulk_storage_part"
+  }
+}

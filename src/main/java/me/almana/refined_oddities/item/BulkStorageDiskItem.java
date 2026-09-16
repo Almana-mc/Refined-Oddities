@@ -85,11 +85,11 @@ public final class BulkStorageDiskItem extends AbstractStorageContainerItem {
 
     @Override
     protected ItemStack createPrimaryDisassemblyByproduct(final int count) {
-        return new ItemStack(ModItems.BULK_STORAGE_HOUSING.get(), count);
+        return new ItemStack(ModItems.BULK_STORAGE_PART.get(), count);
     }
 
     @Override
     protected ItemStack createSecondaryDisassemblyByproduct(final int count) {
-        return new ItemStack(ModItems.BULK_STORAGE_PART.get(), count);
+        return null;
     }
 }

@@ -1,0 +1,10 @@
+{
+  "type": "minecraft:smelting",
+  "ingredient": {
+    "item": "refined_oddities:raw_glowstone_enriched_netherite_processor"
+  },
+  "result": {
+    "id": "refined_oddities:glowstone_enriched_netherite_processor"
+  },
+  "experience": 0.5
+}

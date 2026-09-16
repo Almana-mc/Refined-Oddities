@@ -9,7 +9,6 @@ import me.almana.refined_oddities.menu.CompressionConfigurationMenu;
 import me.almana.refined_oddities.storage.CompressionStorage;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.renderer.Rect2i;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -51,8 +50,10 @@ public final class CompressionConfigurationScreen
     private static final int SCROLLBAR_X = 158;
     private static final int SCROLLBAR_WIDTH = 7;
     private static final int SCROLLBAR_HEIGHT = 15;
+    private static final int INVENTORY_Y = 121;
+    private static final int INVENTORY_TEXTURE_Y = 141;
+    private static final int INVENTORY_TEXTURE_HEIGHT = 57;
 
-    private Button clearButton;
     private int scrollRow;
     private boolean draggingScrollbar;
 
@@ -61,17 +62,8 @@ public final class CompressionConfigurationScreen
                                           final Component title) {
         super(menu, inventory, title);
         imageWidth = 176;
-        imageHeight = 223;
-        inventoryLabelY = 129;
-    }
-
-    @Override
-    protected void init() {
-        super.init();
-        clearButton = addRenderableWidget(Button.builder(
-            Component.translatable("gui.refined_oddities.clear"),
-            button -> sendButton(CompressionConfigurationMenu.CLEAR_BUTTON)
-        ).bounds(leftPos + 58, topPos + 96, 60, 20).build());
+        imageHeight = 203;
+        inventoryLabelY = 109;
     }
 
     @Override
@@ -82,7 +74,6 @@ public final class CompressionConfigurationScreen
     @Override
     protected void containerTick() {
         super.containerTick();
-        clearButton.active = menu.hasSelection() && menu.canChangeSelection();
         scrollRow = Mth.clamp(scrollRow, 0, maxScrollRow());
     }
 
@@ -91,8 +82,13 @@ public final class CompressionConfigurationScreen
                             final float partialTick,
                             final int mouseX,
                             final int mouseY) {
-        super.renderBg(graphics, partialTick, mouseX, mouseY);
-        graphics.fill(leftPos + 7, topPos + 37, leftPos + 169, topPos + 128, PANEL_COLOR);
+        graphics.blit(TEXTURE, leftPos, topPos, 0, 0, imageWidth, INVENTORY_Y);
+        graphics.blit(TEXTURE, leftPos, topPos + INVENTORY_Y, 0, INVENTORY_TEXTURE_Y,
+            imageWidth, INVENTORY_TEXTURE_HEIGHT);
+        graphics.blit(TEXTURE, leftPos, topPos + INVENTORY_Y + INVENTORY_TEXTURE_HEIGHT,
+            0, INVENTORY_TEXTURE_Y + INVENTORY_TEXTURE_HEIGHT,
+            imageWidth, imageHeight - INVENTORY_Y - INVENTORY_TEXTURE_HEIGHT);
+        graphics.fill(leftPos + 7, topPos + 37, leftPos + 169, topPos + INVENTORY_Y, PANEL_COLOR);
         graphics.fill(leftPos + 151, topPos + 18, leftPos + 170, topPos + 37, PANEL_COLOR);
         graphics.blitSprite(Sprites.SLOT, leftPos + 79, topPos + 72, STATE_SIZE, STATE_SIZE);
         drawStateTiles(graphics, mouseX, mouseY);
@@ -159,7 +155,7 @@ public final class CompressionConfigurationScreen
                 menu.resultCode() - 1
             ];
             final String key = "gui.refined_oddities.result." + result.name().toLowerCase(Locale.ROOT);
-            drawCentered(graphics, Component.translatable(key), 118,
+            drawCentered(graphics, Component.translatable(key), 98,
                 result == CompressionStorage.ConfigurationResult.SUCCESS ? ENABLED_COLOR : 0xFFB02020);
         }
     }

@@ -1,0 +1,14 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "ingredients": [
+    {
+      "item": "refinedstorage:storage_housing"
+    },
+    {
+      "item": "refined_oddities:bulk_storage_part"
+    }
+  ],
+  "result": {
+    "id": "refined_oddities:bulk_storage_disk"
+  }
+}
