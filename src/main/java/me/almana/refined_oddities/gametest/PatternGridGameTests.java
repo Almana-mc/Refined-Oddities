@@ -31,7 +31,7 @@ public final class PatternGridGameTests {
 
         for (final String getter : new String[] {"getProcessingInput", "getProcessingOutput"}) {
             final ResourceContainer container = container(grid, getter);
-            helper.assertValueEqual(container.getMaxAmount(cobblestone), (long) Integer.MAX_VALUE, getter + " max");
+            helper.assertValueEqual(container.getMaxAmount(cobblestone), (long) (Integer.MAX_VALUE / 81), getter + " max");
             container.set(0, new ResourceAmount(cobblestone, 64));
             container.setAmount(0, 1000);
             helper.assertValueEqual(container.getAmount(0), 1000L, getter + " amount");

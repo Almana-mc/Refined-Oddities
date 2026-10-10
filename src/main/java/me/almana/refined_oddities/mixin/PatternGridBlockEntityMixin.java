@@ -12,7 +12,7 @@ public abstract class PatternGridBlockEntityMixin {
     @Inject(method = "getProcessingPatternLimit", at = @At("HEAD"), cancellable = true)
     private static void raiseProcessingPatternLimit(final ResourceKey resource,
                                                     final CallbackInfoReturnable<Long> callback) {
-        // int cap avoids ItemStack truncation
-        callback.setReturnValue((long) Integer.MAX_VALUE);
+        // 81 merged slots fit int
+        callback.setReturnValue((long) (Integer.MAX_VALUE / 81));
     }
 }
