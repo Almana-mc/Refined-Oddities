@@ -72,7 +72,8 @@ public final class BulkStorageDiskItem extends AbstractStorageContainerItem {
         }
         final List<ItemResource> filter = resolve(RefinedStorageApi.INSTANCE.getStorageRepository(level), stack)
             .filter(CompressionStorage.class::isInstance)
-            .map(storage -> ((CompressionStorage) storage).getFilter())
+            .map(CompressionStorage.class::cast)
+            .map(CompressionStorage::getFilter)
             .orElse(List.of());
         if (filter.equals(stack.getOrDefault(ModDataComponents.BULK_FILTER.get(), List.of()))) {
             return;
