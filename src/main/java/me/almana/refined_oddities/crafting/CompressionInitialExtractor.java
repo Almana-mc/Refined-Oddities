@@ -71,7 +71,7 @@ public final class CompressionInitialExtractor {
             .map(handle -> new Pool<>(
                 handle,
                 handle.storage().getFamily(),
-                handle.storage().getEnabledItemIds(),
+                handle.enabledItemIds(),
                 handle.storage().getBaseUnits()
             ))
             .toList();
@@ -98,7 +98,7 @@ public final class CompressionInitialExtractor {
     }
 
     private static boolean isStoredBy(final List<CompressionStorageHandle> handles, final ResourceLocation itemId) {
-        return handles.stream().anyMatch(handle -> handle.storage().isFormEnabled(itemId));
+        return handles.stream().anyMatch(handle -> handle.enabledItemIds().contains(itemId));
     }
 
     public record Result(boolean changed, boolean complete) {

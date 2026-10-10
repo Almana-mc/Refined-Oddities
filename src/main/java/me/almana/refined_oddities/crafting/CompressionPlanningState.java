@@ -18,7 +18,7 @@ public final class CompressionPlanningState {
         this.pools = new ArrayList<>(handles.size());
         for (int i = 0; i < handles.size(); i++) {
             final var storage = handles.get(i).storage();
-            pools.add(new Pool<>(i, storage.getFamily(), storage.getEnabledItemIds(), storage.getBaseUnits()));
+            pools.add(new Pool<>(i, storage.getFamily(), handles.get(i).enabledItemIds(), storage.getBaseUnits()));
         }
         this.requirements = new HashMap<>();
     }

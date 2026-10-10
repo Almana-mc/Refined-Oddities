@@ -159,6 +159,42 @@ public final class CompressionCraftingGameTests {
         helper.succeed();
     }
 
+    @GameTest(template = "empty")
+    public static void insertOnlyRelayKeepsCompressionFromTasks(final GameTestHelper helper)
+        throws ReflectiveOperationException {
+        final CompressionStorage storage = new CompressionStorage(90, ironFamily(), () -> { });
+        final RootStorageImpl root = CompressionDiskDriveFixture.behindRelay(storage, AccessMode.INSERT, Set.of());
+        final TaskImpl task = new TaskImpl(plan(List.of(new ResourceAmount(INGOT, 1))), Actor.EMPTY, false);
+
+        task.step(root, null, StepBehavior.DEFAULT, TaskListener.EMPTY);
+        helper.assertValueEqual(task.getState(), TaskState.EXTRACTING_INITIAL_RESOURCES, "task state");
+        helper.assertValueEqual(storage.getBaseUnits(), 90L, "insert-only relay disk");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void relayFilterLimitsCompressionPool(final GameTestHelper helper)
+        throws ReflectiveOperationException {
+        final CompressionStorage storage = new CompressionStorage(162, ironFamily(), () -> { });
+        final RootStorageImpl root = CompressionDiskDriveFixture.behindRelay(storage, AccessMode.EXTRACT, Set.of(BLOCK));
+        final StorageImpl ordinary = new StorageImpl();
+        ordinary.insert(BLOCK, 5, Action.EXECUTE, Actor.EMPTY);
+        root.addSource(ordinary);
+        final Class<?> type = Class.forName(
+            "com.refinedmods.refinedstorage.api.autocrafting.calculation.CraftingState"
+        );
+        final Object state = accessible(type.getDeclaredMethod("of", RootStorage.class)).invoke(null, root);
+        final Method getResource = accessible(type.getDeclaredMethod("getResource", ResourceKey.class));
+        helper.assertValueEqual(amount(getResource.invoke(state, BLOCK)), 5L, "ordinary blocks only");
+        helper.assertValueEqual(amount(getResource.invoke(state, INGOT)), 18L, "relayed ingots");
+
+        final TaskImpl task = new TaskImpl(plan(List.of(new ResourceAmount(BLOCK, 6))), Actor.EMPTY, false);
+        task.step(root, null, StepBehavior.DEFAULT, TaskListener.EMPTY);
+        helper.assertValueEqual(task.createSnapshot().copyInternalStorage().get(BLOCK), 5L, "task blocks");
+        helper.assertValueEqual(storage.getBaseUnits(), 162L, "filtered disk untouched");
+        helper.succeed();
+    }
+
     private static TaskPlan plan(final List<ResourceAmount> requirements) {
         return new TaskPlan(BLOCK, 1, null, Map.<Pattern, TaskPlan.PatternPlan>of(), requirements);
     }

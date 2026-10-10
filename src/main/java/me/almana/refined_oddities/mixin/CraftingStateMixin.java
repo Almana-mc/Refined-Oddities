@@ -49,7 +49,9 @@ public abstract class CraftingStateMixin implements CraftingStateAccess {
     @Override
     public void refinedOddities$initialize(final List<CompressionStorageHandle> handles) {
         refinedOddities$pools = new CompressionPlanningState(handles);
-        handles.forEach(handle -> handle.storage().getAll().forEach(storage::remove));
+        handles.forEach(handle -> handle.storage().getAll().stream()
+            .filter(amount -> handle.allowed().test(amount.resource()))
+            .forEach(storage::remove));
     }
 
     @Override
