@@ -13,6 +13,7 @@ import com.refinedmods.refinedstorage.api.resource.ResourceAmount;
 import com.refinedmods.refinedstorage.api.resource.ResourceKey;
 import com.refinedmods.refinedstorage.api.resource.list.MutableResourceList;
 import com.refinedmods.refinedstorage.api.resource.list.MutableResourceListImpl;
+import com.refinedmods.refinedstorage.api.storage.AccessMode;
 import com.refinedmods.refinedstorage.api.storage.Actor;
 import com.refinedmods.refinedstorage.api.storage.StorageImpl;
 import com.refinedmods.refinedstorage.api.storage.root.RootStorage;
@@ -21,6 +22,7 @@ import com.refinedmods.refinedstorage.common.support.resource.ItemResource;
 import java.lang.reflect.Method;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import me.almana.refined_oddities.Refined_oddities;
 import me.almana.refined_oddities.storage.CompressionFamily;
 import me.almana.refined_oddities.storage.CompressionForm;
@@ -135,6 +137,24 @@ public final class CompressionCraftingGameTests {
         helper.assertValueEqual(task.getState(), TaskState.RUNNING, "task state");
         helper.assertValueEqual(task.createSnapshot().copyInternalStorage().get(resource), 1L, "task exact item");
         helper.assertValueEqual(root.get(resource), 1L, "disk exact item remainder");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void taskExtractsCompressionThroughExtractOnlyRelay(final GameTestHelper helper)
+        throws ReflectiveOperationException {
+        final CompressionStorage storage = new CompressionStorage(108, ironFamily(), () -> { });
+        final RootStorageImpl root = CompressionDiskDriveFixture.behindRelay(storage, AccessMode.EXTRACT, Set.of());
+        final TaskImpl task = new TaskImpl(plan(List.of(
+            new ResourceAmount(INGOT, 3),
+            new ResourceAmount(BLOCK, 1)
+        )), Actor.EMPTY, false);
+
+        helper.assertTrue(task.step(root, null, StepBehavior.DEFAULT, TaskListener.EMPTY), "task did not extract");
+        helper.assertValueEqual(task.getState(), TaskState.RUNNING, "task state");
+        assertTaskStorage(helper, task.createSnapshot().copyInternalStorage(), 3, 1);
+        helper.assertValueEqual(storage.getBaseUnits(), 0L, "relayed disk remainder");
+        helper.assertValueEqual(root.get(INGOT), 0L, "relayed ingots in cache");
         helper.succeed();
     }
 
