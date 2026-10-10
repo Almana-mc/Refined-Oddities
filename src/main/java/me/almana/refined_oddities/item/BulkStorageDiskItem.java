@@ -4,7 +4,10 @@ import com.refinedmods.refinedstorage.common.api.RefinedStorageApi;
 import com.refinedmods.refinedstorage.common.api.storage.AbstractStorageContainerItem;
 import com.refinedmods.refinedstorage.common.api.storage.SerializableStorage;
 import com.refinedmods.refinedstorage.common.api.storage.StorageRepository;
+import com.refinedmods.refinedstorage.common.support.resource.ItemResource;
+import java.util.List;
 import java.util.Optional;
+import me.almana.refined_oddities.content.ModDataComponents;
 import me.almana.refined_oddities.content.ModItems;
 import me.almana.refined_oddities.menu.CompressionConfigurationMenu;
 import me.almana.refined_oddities.storage.CompressionStorage;
@@ -13,6 +16,7 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResultHolder;
 import net.minecraft.world.SimpleMenuProvider;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -54,6 +58,30 @@ public final class BulkStorageDiskItem extends AbstractStorageContainerItem {
             );
         }
         return InteractionResultHolder.sidedSuccess(stack, level.isClientSide());
+    }
+
+    @Override
+    public void inventoryTick(final ItemStack stack,
+                              final Level level,
+                              final Entity entity,
+                              final int slot,
+                              final boolean selected) {
+        super.inventoryTick(stack, level, entity, slot, selected);
+        if (level.isClientSide()) {
+            return;
+        }
+        final List<ItemResource> filter = resolve(RefinedStorageApi.INSTANCE.getStorageRepository(level), stack)
+            .filter(CompressionStorage.class::isInstance)
+            .map(storage -> ((CompressionStorage) storage).getFilter())
+            .orElse(List.of());
+        if (filter.equals(stack.getOrDefault(ModDataComponents.BULK_FILTER.get(), List.of()))) {
+            return;
+        }
+        if (filter.isEmpty()) {
+            stack.remove(ModDataComponents.BULK_FILTER.get());
+        } else {
+            stack.set(ModDataComponents.BULK_FILTER.get(), filter);
+        }
     }
 
     private boolean mayDisassemble(final Level level, final ItemStack stack) {

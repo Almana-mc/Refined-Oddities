@@ -2,6 +2,7 @@ package me.almana.refined_oddities;
 
 import com.refinedmods.refinedstorage.common.api.RefinedStorageApi;
 import me.almana.refined_oddities.command.BulkDiskCommand;
+import me.almana.refined_oddities.content.ModDataComponents;
 import me.almana.refined_oddities.content.ModItems;
 import me.almana.refined_oddities.content.ModMenus;
 import me.almana.refined_oddities.recipe.CompressionRecipeReloadHandler;
@@ -21,6 +22,7 @@ public class Refined_oddities {
 
     public Refined_oddities(final IEventBus modBus) {
         ModItems.REGISTER.register(modBus);
+        ModDataComponents.REGISTER.register(modBus);
         ModMenus.REGISTER.register(modBus);
         modBus.addListener(this::commonSetup);
         modBus.addListener(this::addCreativeItems);

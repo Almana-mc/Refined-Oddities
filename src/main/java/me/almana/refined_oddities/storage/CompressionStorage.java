@@ -184,6 +184,16 @@ public final class CompressionStorage implements SerializableStorage, LimitedSto
             .toList();
     }
 
+    public List<ItemResource> getFilter() {
+        if (quarantined) {
+            return List.of();
+        }
+        return family.forms().stream()
+            .filter(form -> isFormEnabled(form.itemId()))
+            .map(form -> (ItemResource) resource(form))
+            .toList();
+    }
+
     public boolean isQuarantined() {
         return quarantined;
     }
