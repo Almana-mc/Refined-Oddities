@@ -21,7 +21,8 @@ public final class PatternGridGameTests {
     }
 
     @GameTest(template = "empty")
-    public static void processingSlotsAcceptMoreThanAStack(final GameTestHelper helper) {
+    public static void processingSlotsAcceptMoreThanAStack(final GameTestHelper helper)
+        throws ReflectiveOperationException {
         final PatternGridBlockEntity grid = new PatternGridBlockEntity(
             BlockPos.ZERO,
             Blocks.INSTANCE.getPatternGrid().getDefault().defaultBlockState()
@@ -30,6 +31,7 @@ public final class PatternGridGameTests {
 
         for (final String getter : new String[] {"getProcessingInput", "getProcessingOutput"}) {
             final ResourceContainer container = container(grid, getter);
+            helper.assertValueEqual(container.getMaxAmount(cobblestone), (long) Integer.MAX_VALUE, getter + " max");
             container.set(0, new ResourceAmount(cobblestone, 64));
             container.setAmount(0, 1000);
             helper.assertValueEqual(container.getAmount(0), 1000L, getter + " amount");
@@ -37,13 +39,10 @@ public final class PatternGridGameTests {
         helper.succeed();
     }
 
-    private static ResourceContainer container(final PatternGridBlockEntity grid, final String getter) {
-        try {
-            final Method method = PatternGridBlockEntity.class.getDeclaredMethod(getter);
-            method.setAccessible(true);
-            return (ResourceContainer) method.invoke(grid);
-        } catch (final ReflectiveOperationException e) {
-            throw new IllegalStateException(e);
-        }
+    private static ResourceContainer container(final PatternGridBlockEntity grid, final String getter)
+        throws ReflectiveOperationException {
+        final Method method = PatternGridBlockEntity.class.getDeclaredMethod(getter);
+        method.setAccessible(true);
+        return (ResourceContainer) method.invoke(grid);
     }
 }
