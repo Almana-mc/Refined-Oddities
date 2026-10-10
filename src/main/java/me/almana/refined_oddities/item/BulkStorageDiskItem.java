@@ -102,7 +102,7 @@ public final class BulkStorageDiskItem extends AbstractStorageContainerItem {
         }
         tooltip.add(FILTER);
         filter.forEach(resource -> tooltip.add(
-            Component.literal(" ").append(resource.toItemStack().getHoverName()).withStyle(ChatFormatting.DARK_GRAY)
+            Component.literal(" ").append(resource.toItemStack().getHoverName()).withStyle(ChatFormatting.GRAY)
         ));
     }
 
