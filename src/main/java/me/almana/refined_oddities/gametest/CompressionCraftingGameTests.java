@@ -187,6 +187,9 @@ public final class CompressionCraftingGameTests {
         final Method getResource = accessible(type.getDeclaredMethod("getResource", ResourceKey.class));
         helper.assertValueEqual(amount(getResource.invoke(state, BLOCK)), 5L, "ordinary blocks only");
         helper.assertValueEqual(amount(getResource.invoke(state, INGOT)), 18L, "relayed ingots");
+        final Method extract = accessible(type.getDeclaredMethod("extractFromStorage", ResourceKey.class, long.class));
+        extract.invoke(state, BLOCK, 5L);
+        helper.assertValueEqual(amount(getResource.invoke(state, INGOT)), 18L, "ingots after ordinary blocks");
 
         final TaskImpl task = new TaskImpl(plan(List.of(new ResourceAmount(BLOCK, 6))), Actor.EMPTY, false);
         task.step(root, null, StepBehavior.DEFAULT, TaskListener.EMPTY);
