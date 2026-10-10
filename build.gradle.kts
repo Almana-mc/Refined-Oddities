@@ -100,6 +100,14 @@ neoForge {
             systemProperty("forge.logging.markers", "REGISTRIES")
             logLevel = org.slf4j.event.Level.DEBUG
         }
+
+        create("packGameTestServer") {
+            type = "gameTestServer"
+            gameDirectory.set(file(providers.gradleProperty("pack_game_dir").getOrElse("run/pack")))
+            systemProperty("neoforge.enabledGameTestNamespaces", modId)
+            jvmArguments.add("-Xmx8G")
+            logLevel = org.slf4j.event.Level.INFO
+        }
     }
 
     mods {

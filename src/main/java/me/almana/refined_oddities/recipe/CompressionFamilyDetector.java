@@ -1,8 +1,8 @@
 package me.almana.refined_oddities.recipe;
 
-import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 import me.almana.refined_oddities.storage.CompressionFamily;
 import me.almana.refined_oddities.storage.CompressionForm;
 import me.almana.refined_oddities.storage.CompressionStorage;
@@ -23,63 +24,40 @@ public final class CompressionFamilyDetector {
                                 final Collection<CompressionLink> decompression,
                                 final Collection<ResourceLocation> rejectedItems) {
         final Set<ResourceLocation> invalid = new HashSet<>(rejectedItems);
+        final Map<ResourceLocation, List<Edge>> upward = new HashMap<>();
+        final Map<ResourceLocation, List<Edge>> downward = new HashMap<>();
+        for (final Edge edge : candidates(compression, decompression, invalid)) {
+            upward.computeIfAbsent(edge.lower(), key -> new ArrayList<>()).add(edge);
+            downward.computeIfAbsent(edge.higher(), key -> new ArrayList<>()).add(edge);
+        }
+        final Walk up = new Walk(upward, Edge::higher, new HashMap<>());
+        final Walk down = new Walk(downward, Edge::lower, new HashMap<>());
+        final Set<ResourceLocation> items = new HashSet<>(upward.keySet());
+        items.addAll(downward.keySet());
+        final Map<ResourceLocation, CompressionFamily> families = new HashMap<>();
+        for (final ResourceLocation item : items) {
+            buildFamily(item, up, down).ifPresentOrElse(family -> families.put(item, family), () -> invalid.add(item));
+        }
+        return new Result(Map.copyOf(families), Set.copyOf(invalid));
+    }
+
+    private static List<Edge> candidates(final Collection<CompressionLink> compression,
+                                         final Collection<CompressionLink> decompression,
+                                         final Set<ResourceLocation> invalid) {
         final Map<Pair, Set<Integer>> compressionRatios = collectRatios(compression);
         final Map<Pair, Set<Integer>> decompressionRatios = collectRatios(decompression);
         final List<Edge> candidates = new ArrayList<>();
-        final Map<ResourceLocation, Integer> outgoingCounts = new HashMap<>();
-        final Map<ResourceLocation, Integer> incomingCounts = new HashMap<>();
-        final Map<ResourceLocation, Edge> outgoing = new HashMap<>();
-        final Map<ResourceLocation, Edge> incoming = new HashMap<>();
-        final Map<ResourceLocation, Set<ResourceLocation>> neighbors = new HashMap<>();
-        final Set<Pair> pairs = new HashSet<>();
-        pairs.addAll(compressionRatios.keySet());
-        pairs.addAll(decompressionRatios.keySet());
-
-        for (final Pair pair : pairs) {
-            final Set<Integer> compress = compressionRatios.getOrDefault(pair, Set.of());
+        compressionRatios.forEach((pair, compress) -> {
             final Set<Integer> decompress = decompressionRatios.getOrDefault(pair, Set.of());
-            if (compress.isEmpty() || decompress.isEmpty()) {
-                continue;
+            if (compress.size() != 1
+                || !compress.equals(decompress)
+                || invalid.contains(pair.lower())
+                || invalid.contains(pair.higher())) {
+                return;
             }
-            if (compress.size() != 1 || !compress.equals(decompress)) {
-                continue;
-            }
-            final int ratio = compress.iterator().next();
-            final Edge edge = new Edge(pair.lower(), pair.higher(), ratio);
-            if (invalid.contains(edge.lower()) || invalid.contains(edge.higher())) {
-                continue;
-            }
-            candidates.add(edge);
-            outgoingCounts.merge(edge.lower(), 1, Integer::sum);
-            incomingCounts.merge(edge.higher(), 1, Integer::sum);
-        }
-
-        for (final Edge edge : candidates) {
-            if (outgoingCounts.get(edge.lower()) != 1 || incomingCounts.get(edge.higher()) != 1) {
-                continue;
-            }
-            outgoing.put(edge.lower(), edge);
-            incoming.put(edge.higher(), edge);
-            neighbors.computeIfAbsent(edge.lower(), key -> new HashSet<>()).add(edge.higher());
-            neighbors.computeIfAbsent(edge.higher(), key -> new HashSet<>()).add(edge.lower());
-        }
-
-        final Map<ResourceLocation, CompressionFamily> families = new HashMap<>();
-        final Set<ResourceLocation> visited = new HashSet<>();
-        for (final ResourceLocation item : neighbors.keySet()) {
-            if (visited.contains(item)) {
-                continue;
-            }
-            final Set<ResourceLocation> component = component(item, neighbors);
-            visited.addAll(component);
-            final Optional<CompressionFamily> family = buildFamily(component, outgoing, incoming);
-            if (family.isEmpty()) {
-                invalid.addAll(component);
-                continue;
-            }
-            component.forEach(member -> families.put(member, family.get()));
-        }
-        return new Result(Map.copyOf(families), Set.copyOf(invalid));
+            candidates.add(new Edge(pair.lower(), pair.higher(), compress.iterator().next()));
+        });
+        return candidates;
     }
 
     private static Map<Pair, Set<Integer>> collectRatios(final Collection<CompressionLink> links) {
@@ -93,49 +71,25 @@ public final class CompressionFamilyDetector {
         return result;
     }
 
-    private static Set<ResourceLocation> component(final ResourceLocation first,
-                                                   final Map<ResourceLocation, Set<ResourceLocation>> neighbors) {
-        final Set<ResourceLocation> result = new HashSet<>();
-        final ArrayDeque<ResourceLocation> queue = new ArrayDeque<>();
-        queue.add(first);
-        while (!queue.isEmpty()) {
-            final ResourceLocation item = queue.removeFirst();
-            if (result.add(item)) {
-                queue.addAll(neighbors.getOrDefault(item, Set.of()));
-            }
-        }
-        return result;
-    }
-
-    private static Optional<CompressionFamily> buildFamily(final Set<ResourceLocation> component,
-                                                           final Map<ResourceLocation, Edge> outgoing,
-                                                           final Map<ResourceLocation, Edge> incoming) {
-        if (component.size() < 2 || component.size() > CompressionFamily.MAX_FORMS) {
+    private static Optional<CompressionFamily> buildFamily(final ResourceLocation item,
+                                                           final Walk up,
+                                                           final Walk down) {
+        final Set<ResourceLocation> seen = new HashSet<>(Set.of(item));
+        final List<Edge> below = new ArrayList<>();
+        final List<Edge> above = new ArrayList<>();
+        if (!up.collect(item, seen, above) || !down.collect(item, seen, below)) {
             return Optional.empty();
         }
-        final List<ResourceLocation> roots = component.stream().filter(item -> !incoming.containsKey(item)).toList();
-        if (roots.size() != 1) {
-            return Optional.empty();
-        }
-        final List<CompressionForm> forms = new ArrayList<>(component.size());
-        final Set<ResourceLocation> seen = new HashSet<>();
-        ResourceLocation current = roots.getFirst();
+        final List<Edge> chain = new ArrayList<>(below.reversed());
+        chain.addAll(above);
+        final List<CompressionForm> forms = new ArrayList<>(List.of(new CompressionForm(chain.getFirst().lower(), 1)));
         long weight = 1;
-        while (current != null && seen.add(current)) {
-            forms.add(new CompressionForm(current, weight));
-            final Edge edge = outgoing.get(current);
-            if (edge == null) {
-                current = null;
-            } else {
-                if (weight > CompressionStorage.CAPACITY / edge.ratio()) {
-                    return Optional.empty();
-                }
-                weight *= edge.ratio();
-                current = edge.higher();
+        for (final Edge edge : chain) {
+            if (weight > CompressionStorage.CAPACITY / edge.ratio()) {
+                return Optional.empty();
             }
-        }
-        if (seen.size() != component.size()) {
-            return Optional.empty();
+            weight *= edge.ratio();
+            forms.add(new CompressionForm(edge.higher(), weight));
         }
         return Optional.of(new CompressionFamily(forms));
     }
@@ -147,6 +101,42 @@ public final class CompressionFamilyDetector {
                 return Optional.empty();
             }
             return Optional.ofNullable(families.get(itemId)).or(() -> Optional.of(CompressionFamily.single(itemId)));
+        }
+    }
+
+    private record Walk(Map<ResourceLocation, List<Edge>> edges,
+                        Function<Edge, ResourceLocation> next,
+                        Map<ResourceLocation, Integer> reach) {
+        private boolean collect(final ResourceLocation start, final Set<ResourceLocation> seen, final List<Edge> path) {
+            for (Optional<Edge> edge = preferred(start); edge.isPresent(); edge = preferred(next.apply(edge.get()))) {
+                if (!seen.add(next.apply(edge.get())) || seen.size() > CompressionFamily.MAX_FORMS) {
+                    return false;
+                }
+                path.add(edge.get());
+            }
+            return true;
+        }
+
+        // longest chain wins, then smallest id
+        private Optional<Edge> preferred(final ResourceLocation item) {
+            return edges.getOrDefault(item, List.of()).stream().max(Comparator
+                .comparingInt((Edge edge) -> reach(next.apply(edge)))
+                .thenComparing(next, Comparator.reverseOrder()));
+        }
+
+        private int reach(final ResourceLocation item) {
+            final Integer known = reach.get(item);
+            if (known != null) {
+                return known;
+            }
+            final int limit = CompressionFamily.MAX_FORMS + 1;
+            reach.put(item, limit);
+            final int value = 1 + edges.getOrDefault(item, List.of()).stream()
+                .mapToInt(edge -> reach(next.apply(edge)))
+                .max()
+                .orElse(0);
+            reach.put(item, Math.min(value, limit));
+            return reach.get(item);
         }
     }
 

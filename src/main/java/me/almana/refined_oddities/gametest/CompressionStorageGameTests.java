@@ -10,6 +10,7 @@ import com.refinedmods.refinedstorage.common.support.resource.ItemResource;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.IntStream;
 import me.almana.refined_oddities.Refined_oddities;
 import me.almana.refined_oddities.content.ModItems;
 import me.almana.refined_oddities.crafting.CompressionStorageWalker;
@@ -21,15 +22,18 @@ import me.almana.refined_oddities.storage.CompressionForm;
 import me.almana.refined_oddities.storage.CompressionStorage;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.tags.TagKey;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.inventory.ClickType;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.GameType;
+import net.neoforged.fml.ModList;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
@@ -188,10 +192,12 @@ public final class CompressionStorageGameTests {
     @GameTest(template = "empty")
     public static void reloadCatalogFindsVanillaIronFamily(final GameTestHelper helper) {
         final var family = CompressionRecipeCatalog.INSTANCE.familyFor(Items.IRON_INGOT).orElseThrow();
-        helper.assertValueEqual(family.forms().size(), 3, "iron family size");
-        helper.assertValueEqual(family.forms().getFirst().weight(), 1L, "nugget weight");
-        helper.assertValueEqual(family.forms().get(1).weight(), 9L, "ingot weight");
-        helper.assertValueEqual(family.forms().get(2).weight(), 81L, "block weight");
+        helper.assertValueEqual(family.find(new ItemResource(Items.IRON_NUGGET)).orElseThrow().weight(),
+            1L, "nugget weight");
+        helper.assertValueEqual(family.find(new ItemResource(Items.IRON_INGOT)).orElseThrow().weight(),
+            9L, "ingot weight");
+        helper.assertValueEqual(family.find(new ItemResource(Items.IRON_BLOCK)).orElseThrow().weight(),
+            81L, "block weight");
         helper.succeed();
     }
 
@@ -203,7 +209,41 @@ public final class CompressionStorageGameTests {
         );
         final var family = result.familyFor(BuiltInRegistries.ITEM.getKey(Items.OAK_LOG)).orElseThrow();
 
-        helper.assertValueEqual(family.forms().size(), 1, "oak log fallback family size");
+        helper.assertTrue(family.forms().stream().noneMatch(form -> form.itemId().equals(
+            BuiltInRegistries.ITEM.getKey(Items.OAK_PLANKS)
+        )), "oak planks entered the log family");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void steelTagRecipesJoinCompressedChain(final GameTestHelper helper) {
+        if (!ModList.get().isLoaded("allthecompressed")
+            || !ModList.get().isLoaded("alltheores")
+            || !ModList.get().isLoaded("mekanism")) {
+            helper.succeed();
+            return;
+        }
+        final List<ResourceLocation> compressed = IntStream.rangeClosed(1, 9)
+            .mapToObj(level -> ResourceLocation.fromNamespaceAndPath(
+                "allthecompressed", "steel_block_" + level + "x"
+            ))
+            .toList();
+        final var family = CompressionRecipeScanner.scan(
+            helper.getLevel().getRecipeManager(),
+            helper.getLevel().registryAccess()
+        ).familyFor(compressed.getFirst()).orElseThrow();
+        final List<ResourceLocation> forms = family.forms().stream().map(CompressionForm::itemId).toList();
+        final var nuggets = TagKey.create(Registries.ITEM,
+            ResourceLocation.fromNamespaceAndPath("c", "nuggets/steel"));
+        final var ingots = TagKey.create(Registries.ITEM,
+            ResourceLocation.fromNamespaceAndPath("c", "ingots/steel"));
+
+        helper.assertTrue(forms.containsAll(compressed)
+            && family.forms().stream().anyMatch(form -> new ItemStack(
+                BuiltInRegistries.ITEM.get(form.itemId())).is(nuggets))
+            && family.forms().stream().anyMatch(form -> new ItemStack(
+                BuiltInRegistries.ITEM.get(form.itemId())).is(ingots)),
+            "steel compression chain is incomplete");
         helper.succeed();
     }
 
@@ -356,7 +396,9 @@ public final class CompressionStorageGameTests {
 
         menu.clicked(0, 0, ClickType.PICKUP, player);
 
-        helper.assertValueEqual(menu.stateCount(), 3, "visible form count");
+        helper.assertValueEqual(menu.stateCount(),
+            CompressionRecipeCatalog.INSTANCE.familyFor(Items.IRON_INGOT).orElseThrow().forms().size(),
+            "visible form count");
         helper.assertTrue(menu.getStateStack(0).is(Items.IRON_NUGGET), "missing nugget form");
         helper.assertTrue(menu.getStateStack(1).is(Items.IRON_INGOT), "missing ingot form");
         helper.assertTrue(menu.getStateStack(2).is(Items.IRON_BLOCK), "missing block form");

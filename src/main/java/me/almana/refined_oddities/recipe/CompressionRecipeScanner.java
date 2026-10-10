@@ -1,6 +1,9 @@
 package me.almana.refined_oddities.recipe;
 
+import com.mojang.logging.LogUtils;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import net.minecraft.core.HolderLookup;
@@ -13,11 +16,13 @@ import net.minecraft.world.item.crafting.CraftingRecipe;
 import net.minecraft.world.item.crafting.Ingredient;
 import net.minecraft.world.item.crafting.RecipeHolder;
 import net.minecraft.world.item.crafting.RecipeManager;
-import net.minecraft.world.item.crafting.RecipeSerializer;
 import net.minecraft.world.item.crafting.ShapedRecipe;
 import net.minecraft.world.item.crafting.ShapelessRecipe;
+import org.slf4j.Logger;
 
 public final class CompressionRecipeScanner {
+    private static final Logger LOGGER = LogUtils.getLogger();
+
     private CompressionRecipeScanner() {
     }
 
@@ -29,93 +34,82 @@ public final class CompressionRecipeScanner {
             if (!(holder.value() instanceof CraftingRecipe recipe)) {
                 continue;
             }
-            if (recipe instanceof ShapedRecipe shaped && shaped.getWidth() == shaped.getHeight()) {
-                if (shaped.getWidth() == 2 || shaped.getWidth() == 3) {
-                    scanCompression(shaped, registries, compression);
-                } else if (shaped.getWidth() == 1) {
-                    scanDecompression(shaped, registries, decompression);
-                }
-            } else if (recipe instanceof ShapelessRecipe shapeless && shapeless.getIngredients().size() == 1) {
-                scanDecompression(shapeless, registries, decompression);
+            // third-party recipes may throw
+            try {
+                scanRecipe(recipe, registries, compression, decompression);
+            } catch (final RuntimeException exception) {
+                LOGGER.debug("Skipping recipe {} during compression scan", holder.id(), exception);
             }
         }
         return CompressionFamilyDetector.detect(compression, decompression, Set.of());
     }
 
-    private static void scanCompression(final ShapedRecipe recipe,
+    private static void scanRecipe(final CraftingRecipe recipe,
+                                   final HolderLookup.Provider registries,
+                                   final List<CompressionLink> compression,
+                                   final List<CompressionLink> decompression) {
+        if (recipe instanceof ShapedRecipe shaped && shaped.getWidth() == shaped.getHeight()) {
+            if (shaped.getWidth() == 2 || shaped.getWidth() == 3) {
+                scanCompression(recipe, shaped.getWidth(), registries, compression);
+            } else if (shaped.getWidth() == 1) {
+                scanDecompression(recipe, registries, decompression);
+            }
+        } else if (recipe instanceof ShapelessRecipe) {
+            final int size = recipe.getIngredients().size();
+            if (size == 4 || size == 9) {
+                scanCompression(recipe, size == 4 ? 2 : 3, registries, compression);
+            } else if (size == 1) {
+                scanDecompression(recipe, registries, decompression);
+            }
+        }
+    }
+
+    private static void scanCompression(final CraftingRecipe recipe,
+                                        final int side,
                                         final HolderLookup.Provider registries,
                                         final List<CompressionLink> links) {
-        final ItemStack output = recipe.getResultItem(registries);
-        final int ratio = recipe.getWidth() * recipe.getHeight();
+        final int ratio = side * side;
         final List<Ingredient> ingredients = recipe.getIngredients();
         if (ingredients.stream().anyMatch(ingredient -> ingredient.isEmpty() || ingredient.hasNoItems())) {
             return;
         }
-        final List<ItemStack> inputs = resolvedInputs(ingredients);
-        if (inputs.size() != ratio || !allSameItem(inputs)) {
-            return;
-        }
-        if (recipe.getSerializer() != RecipeSerializer.SHAPED_RECIPE
-            || output.getCount() != 1
-            || !output.isComponentsPatchEmpty()
-            || ingredients.stream().anyMatch(Ingredient::isCustom)
-            || inputs.stream().anyMatch(stack -> !stack.isComponentsPatchEmpty())
-            || hasRemainder(recipe, CraftingInput.of(recipe.getWidth(), recipe.getHeight(), inputs))) {
-            return;
-        }
-        links.add(new CompressionLink(id(inputs.getFirst().getItem()), id(output.getItem()), ratio));
+        Arrays.stream(ingredients.getFirst().getItems())
+            .filter(ItemStack::isComponentsPatchEmpty)
+            .filter(input -> ingredients.stream().allMatch(ingredient -> ingredient.test(input)))
+            .map(input -> input.copyWithCount(1))
+            .forEach(input -> {
+                final ItemStack output = plainResult(recipe,
+                    CraftingInput.of(side, side, Collections.nCopies(ratio, input)), registries);
+                if (output.getCount() == 1) {
+                    links.add(new CompressionLink(id(input.getItem()), id(output.getItem()), ratio));
+                }
+            });
     }
 
     private static void scanDecompression(final CraftingRecipe recipe,
                                           final HolderLookup.Provider registries,
                                           final List<CompressionLink> links) {
-        final ItemStack output = recipe.getResultItem(registries);
-        final int ratio = output.getCount();
-        final List<ItemStack> inputs = exactInputs(recipe.getIngredients());
-        final boolean standardRecipe = recipe.getSerializer() == RecipeSerializer.SHAPED_RECIPE
-            || recipe.getSerializer() == RecipeSerializer.SHAPELESS_RECIPE;
-        if (!standardRecipe
-            || ratio != 4 && ratio != 9
-            || !output.isComponentsPatchEmpty()
-            || inputs.size() != 1
-            || hasRemainder(recipe, CraftingInput.of(1, 1, inputs))) {
-            return;
-        }
-        links.add(new CompressionLink(id(output.getItem()), id(inputs.getFirst().getItem()), ratio));
+        Arrays.stream(recipe.getIngredients().getFirst().getItems())
+            .filter(ItemStack::isComponentsPatchEmpty)
+            .map(input -> input.copyWithCount(1))
+            .forEach(input -> {
+                final ItemStack output = plainResult(recipe, CraftingInput.of(1, 1, List.of(input)), registries);
+                if (output.getCount() == 4 || output.getCount() == 9) {
+                    links.add(new CompressionLink(id(output.getItem()), id(input.getItem()), output.getCount()));
+                }
+            });
     }
 
-    private static List<ItemStack> exactInputs(final List<Ingredient> ingredients) {
-        final List<ItemStack> inputs = resolvedInputs(ingredients);
-        if (ingredients.stream().anyMatch(Ingredient::isCustom)
-            || inputs.stream().anyMatch(stack -> !stack.isComponentsPatchEmpty())) {
-            return List.of();
-        }
-        return inputs;
-    }
-
-    private static List<ItemStack> resolvedInputs(final List<Ingredient> ingredients) {
-        final List<ItemStack> inputs = new ArrayList<>(ingredients.size());
-        for (final Ingredient ingredient : ingredients) {
-            final ItemStack[] matches = ingredient.getItems();
-            if (matches.length != 1) {
-                return List.of();
-            }
-            inputs.add(matches[0].copyWithCount(1));
-        }
-        return inputs;
-    }
-
-    private static boolean allSameItem(final List<ItemStack> inputs) {
-        final Item item = inputs.getFirst().getItem();
-        return inputs.stream().allMatch(stack -> stack.is(item));
-    }
-
-    private static boolean hasRemainder(final CraftingRecipe recipe, final CraftingInput input) {
-        return recipe.getRemainingItems(input).stream().anyMatch(stack -> !stack.isEmpty());
+    private static ItemStack plainResult(final CraftingRecipe recipe,
+                                         final CraftingInput input,
+                                         final HolderLookup.Provider registries) {
+        final ItemStack output = recipe.assemble(input, registries);
+        final boolean plain = output.isComponentsPatchEmpty()
+            && recipe.getRemainingItems(input).stream().allMatch(ItemStack::isEmpty);
+        return plain ? output : ItemStack.EMPTY;
     }
 
     private static ResourceLocation id(final Item item) {
         return BuiltInRegistries.ITEM.getKey(item);
     }
-
 }
