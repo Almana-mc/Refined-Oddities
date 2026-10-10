@@ -11,6 +11,7 @@ import me.almana.refined_oddities.content.ModDataComponents;
 import me.almana.refined_oddities.content.ModItems;
 import me.almana.refined_oddities.menu.CompressionConfigurationMenu;
 import me.almana.refined_oddities.storage.CompressionStorage;
+import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
@@ -20,12 +21,16 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.TooltipFlag;
 import net.minecraft.world.level.Level;
 
 public final class BulkStorageDiskItem extends AbstractStorageContainerItem {
     private static final Component TITLE = Component.translatable(
         "menu.refined_oddities.bulk_storage_configuration"
     );
+    private static final Component FILTER = Component.translatable(
+        "item.refined_oddities.bulk_storage_disk.filter"
+    ).withStyle(ChatFormatting.GRAY);
 
     public BulkStorageDiskItem() {
         super(
@@ -83,6 +88,22 @@ public final class BulkStorageDiskItem extends AbstractStorageContainerItem {
         } else {
             stack.set(ModDataComponents.BULK_FILTER.get(), filter);
         }
+    }
+
+    @Override
+    public void appendHoverText(final ItemStack stack,
+                                final TooltipContext context,
+                                final List<Component> tooltip,
+                                final TooltipFlag flag) {
+        super.appendHoverText(stack, context, tooltip, flag);
+        final List<ItemResource> filter = stack.getOrDefault(ModDataComponents.BULK_FILTER.get(), List.of());
+        if (filter.isEmpty()) {
+            return;
+        }
+        tooltip.add(FILTER);
+        filter.forEach(resource -> tooltip.add(
+            Component.literal(" ").append(resource.toItemStack().getHoverName()).withStyle(ChatFormatting.DARK_GRAY)
+        ));
     }
 
     private boolean mayDisassemble(final Level level, final ItemStack stack) {

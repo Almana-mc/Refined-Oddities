@@ -1,5 +1,6 @@
 {
   "item.refined_oddities.bulk_storage_disk": "Bulk Storage Disk",
+  "item.refined_oddities.bulk_storage_disk.filter": "Filter:",
   "item.refined_oddities.bulk_storage_part": "Bulk Storage Part",
   "item.refined_oddities.glowstone_enriched_netherite": "Glowstone Enriched Netherite",
   "item.refined_oddities.raw_glowstone_enriched_netherite_processor": "Raw Glowstone Enriched Netherite Processor",
