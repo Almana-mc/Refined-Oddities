@@ -150,6 +150,7 @@ public final class CompressionCraftingGameTests {
             new ResourceAmount(BLOCK, 1)
         )), Actor.EMPTY, false);
 
+        helper.assertValueEqual(root.get(INGOT), 12L, "relayed ingots before extraction");
         helper.assertTrue(task.step(root, null, StepBehavior.DEFAULT, TaskListener.EMPTY), "task did not extract");
         helper.assertValueEqual(task.getState(), TaskState.RUNNING, "task state");
         assertTaskStorage(helper, task.createSnapshot().copyInternalStorage(), 3, 1);
