@@ -6,6 +6,7 @@
   "mixins": [
     "CompositeStorageImplMixin",
     "CraftingStateMixin",
+    "PatternGridBlockEntityMixin",
     "RootStorageImplMixin",
     "StateTrackedStorageMixin",
     "TaskImplMixin"
