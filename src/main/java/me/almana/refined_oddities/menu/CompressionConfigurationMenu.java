@@ -1,13 +1,17 @@
 package me.almana.refined_oddities.menu;
 
 import com.refinedmods.refinedstorage.common.api.RefinedStorageApi;
+import com.refinedmods.refinedstorage.common.content.DataComponents;
 import com.refinedmods.refinedstorage.common.support.resource.ItemResource;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.UUID;
 import me.almana.refined_oddities.content.ModItems;
 import me.almana.refined_oddities.content.ModMenus;
 import me.almana.refined_oddities.recipe.CompressionRecipeCatalog;
 import me.almana.refined_oddities.storage.CompressionFamily;
 import me.almana.refined_oddities.storage.CompressionStorage;
+import net.minecraft.core.component.DataComponentType;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.SimpleContainer;
@@ -206,8 +210,9 @@ public final class CompressionConfigurationMenu extends AbstractContainerMenu {
     @Override
     public boolean stillValid(final Player player) {
         final ItemStack current = player.getItemInHand(hand);
+        final DataComponentType<UUID> reference = DataComponents.INSTANCE.getStorageReference();
         return current.is(ModItems.BULK_STORAGE_DISK.get())
-            && ItemStack.isSameItemSameComponents(openedStack, current);
+            && Objects.equals(openedStack.get(reference), current.get(reference));
     }
 
     public int flags() {

@@ -2,6 +2,7 @@ package me.almana.refined_oddities.gametest;
 
 import com.refinedmods.refinedstorage.common.api.RefinedStorageApi;
 import me.almana.refined_oddities.Refined_oddities;
+import me.almana.refined_oddities.content.ModDataComponents;
 import me.almana.refined_oddities.content.ModItems;
 import me.almana.refined_oddities.menu.CompressionConfigurationMenu;
 import me.almana.refined_oddities.storage.CompressionFamily;
@@ -79,6 +80,28 @@ public final class CompressionConfigurationMenuGameTests {
         helper.assertTrue(menu.getSlot(0).getItem().isEmpty(), "selector was not cleared");
         helper.assertValueEqual(menu.stateCount(), 0, "visible form count");
         helper.assertTrue(storage.getConfiguredResource().isEmpty(), "configured item was not cleared");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void menuStaysOpenAfterFilterSync(final GameTestHelper helper) {
+        final var player = helper.makeMockPlayer(GameType.SURVIVAL);
+        final ItemStack diskStack = new ItemStack(ModItems.BULK_STORAGE_DISK.get());
+        player.setItemInHand(InteractionHand.MAIN_HAND, diskStack);
+        diskStack.inventoryTick(helper.getLevel(), player, 0, true);
+        final var menu = new CompressionConfigurationMenu(
+            1,
+            player.getInventory(),
+            InteractionHand.MAIN_HAND
+        );
+        menu.setCarried(new ItemStack(Items.IRON_INGOT));
+        menu.clicked(0, 0, ClickType.PICKUP, player);
+        menu.setCarried(ItemStack.EMPTY);
+
+        diskStack.inventoryTick(helper.getLevel(), player, 0, true);
+
+        helper.assertTrue(diskStack.has(ModDataComponents.BULK_FILTER.get()), "filter not synced");
+        helper.assertTrue(menu.stillValid(player), "menu closed after filter sync");
         helper.succeed();
     }
 }
