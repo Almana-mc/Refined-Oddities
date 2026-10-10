@@ -4,6 +4,7 @@ import com.refinedmods.refinedstorage.common.support.resource.ItemResource;
 import com.refinedmods.refinedstorage.common.support.resource.ResourceCodecs;
 import java.util.List;
 import me.almana.refined_oddities.Refined_oddities;
+import me.almana.refined_oddities.storage.CompressionFamily;
 import net.minecraft.core.component.DataComponentType;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.codec.ByteBufCodecs;
@@ -18,7 +19,7 @@ public final class ModDataComponents {
     public static final DeferredHolder<DataComponentType<?>, DataComponentType<List<ItemResource>>> BULK_FILTER =
         REGISTER.registerComponentType("bulk_filter", builder -> builder
             .persistent(ResourceCodecs.ITEM_CODEC.listOf())
-            .networkSynchronized(ResourceCodecs.ITEM_STREAM_CODEC.apply(ByteBufCodecs.list())));
+            .networkSynchronized(ResourceCodecs.ITEM_STREAM_CODEC.apply(ByteBufCodecs.list(CompressionFamily.MAX_FORMS))));
 
     private ModDataComponents() {
     }
